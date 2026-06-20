@@ -5,7 +5,7 @@ const Person = require('../models/Person')
 // Create a new person
 router.post('/', async (req, res) => {
   try {
-    const person = new Person(req.body)
+    const person = new Person({ ...req.body, userId: req.user.userId })
     const saved = await person.save()
     res.status(201).json(saved)
   } catch (err) {
@@ -16,7 +16,7 @@ router.post('/', async (req, res) => {
 // Get all people
 router.get('/', async (req, res) => {
   try {
-    const people = await Person.find()
+    const people = await Person.find({ userId: req.user.userId })
     res.json(people)
   } catch (err) {
     res.status(500).json({ error: err.message })
@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
 // Get one person by ID
 router.get('/:id', async (req, res) => {
   try {
-    const person = await Person.findById(req.params.id)
+    const person = await Person.findOne({ _id: req.params.id, userId: req.user.userId })
     if (!person) return res.status(404).json({ error: 'Person not found' })
     res.json(person)
   } catch (err) {
@@ -34,10 +34,11 @@ router.get('/:id', async (req, res) => {
   }
 })
 
+// Update a person
 router.put('/:id', async (req, res) => {
   try {
-    const person = await Person.findByIdAndUpdate(
-      req.params.id,
+    const person = await Person.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.userId },
       req.body,
       { new: true }
     )
@@ -48,9 +49,10 @@ router.put('/:id', async (req, res) => {
   }
 })
 
+// Delete a person
 router.delete('/:id', async (req, res) => {
   try {
-    const person = await Person.findByIdAndDelete(req.params.id)
+    const person = await Person.findOneAndDelete({ _id: req.params.id, userId: req.user.userId })
     if (!person) return res.status(404).json({ error: 'Person not found' })
     res.json({ message: 'Person deleted' })
   } catch (err) {

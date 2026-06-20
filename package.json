@@ -1,8 +1,10 @@
 {
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.2",
+    "bcrypt": "^6.0.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.3.0",
     "mongoose": "^9.7.0"
   },

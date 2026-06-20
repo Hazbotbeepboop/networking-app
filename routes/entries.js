@@ -6,6 +6,7 @@ const Entry = require('../models/Entry')
 router.post('/me', async (req, res) => {
   try {
     const entry = new Entry({
+      userId: req.user.userId,
       isMine: true,
       content: req.body.content
     })
@@ -19,7 +20,7 @@ router.post('/me', async (req, res) => {
 // Get all personal journal entries
 router.get('/me', async (req, res) => {
   try {
-    const entries = await Entry.find({ isMine: true })
+    const entries = await Entry.find({ userId: req.user.userId, isMine: true })
       .sort({ createdAt: -1 })
     res.json(entries)
   } catch (err) {
@@ -31,6 +32,7 @@ router.get('/me', async (req, res) => {
 router.post('/:personId', async (req, res) => {
   try {
     const entry = new Entry({
+      userId: req.user.userId,
       personId: req.params.personId,
       content: req.body.content
     })
@@ -44,7 +46,7 @@ router.post('/:personId', async (req, res) => {
 // Get all entries for a person
 router.get('/:personId', async (req, res) => {
   try {
-    const entries = await Entry.find({ personId: req.params.personId })
+    const entries = await Entry.find({ userId: req.user.userId, personId: req.params.personId })
       .sort({ createdAt: -1 })
     res.json(entries)
   } catch (err) {
@@ -55,8 +57,8 @@ router.get('/:personId', async (req, res) => {
 // Update an entry
 router.put('/:entryId', async (req, res) => {
   try {
-    const entry = await Entry.findByIdAndUpdate(
-      req.params.entryId,
+    const entry = await Entry.findOneAndUpdate(
+      { _id: req.params.entryId, userId: req.user.userId },
       { content: req.body.content },
       { new: true }
     )
