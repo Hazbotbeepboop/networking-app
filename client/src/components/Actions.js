@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { authFetch } from '../App'
 
+const EMAIL_DRAFTABLE = ['follow_up', 'introduction', 'send_email']
+
 const TYPE_LABELS = {
   follow_up: 'Follow up',
   introduction: 'Introduction',
@@ -37,6 +39,9 @@ function Actions() {
   const [completing, setCompleting] = useState(null)
   const [outcomeText, setOutcomeText] = useState('')
   const [editingDueDate, setEditingDueDate] = useState(null) // action._id
+  const [draftingEmail, setDraftingEmail] = useState(null) // action._id
+  const [emailDrafts, setEmailDrafts] = useState({}) // { [actionId]: { subject, body } }
+  const [draftLoading, setDraftLoading] = useState(null) // action._id
 
   useEffect(() => {
     authFetch('/actions')
@@ -68,6 +73,21 @@ function Actions() {
     }).then(() => {
       setActions(prev => prev.filter(a => a._id !== id))
     })
+  }
+
+  const handleDraftEmail = (action) => {
+    if (draftingEmail === action._id) { setDraftingEmail(null); return }
+    setDraftingEmail(action._id)
+    if (emailDrafts[action._id]) return
+    setDraftLoading(action._id)
+    authFetch('/insights/draft-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actionId: action._id })
+    }).then(res => res.json()).then(data => {
+      setEmailDrafts(prev => ({ ...prev, [action._id]: { subject: data.subject, body: data.body } }))
+      setDraftLoading(null)
+    }).catch(() => setDraftLoading(null))
   }
 
   const handleSetDueDate = (id, dueDate) => {
@@ -171,6 +191,15 @@ function Actions() {
                 <div className="flex gap-2 flex-shrink-0">
                   {completing === action._id ? null : (
                     <>
+                      {EMAIL_DRAFTABLE.includes(action.type) && (
+                        <button
+                          onClick={() => handleDraftEmail(action)}
+                          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-50"
+                          style={draftingEmail === action._id ? { backgroundColor: '#F5EDD8', color: '#B08D57', borderColor: '#B08D57' } : { color: '#B08D57' }}
+                        >
+                          {draftLoading === action._id ? '…' : 'Draft email'}
+                        </button>
+                      )}
                       <button
                         onClick={() => { setCompleting(action._id); setOutcomeText('') }}
                         className="px-3 py-1.5 text-xs font-medium rounded-lg"
@@ -188,6 +217,51 @@ function Actions() {
                   )}
                 </div>
               </div>
+
+              {/* Email draft panel */}
+              {draftingEmail === action._id && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  {draftLoading === action._id ? (
+                    <div className="text-xs text-gray-400 py-2">Drafting…</div>
+                  ) : emailDrafts[action._id] ? (
+                    <>
+                      <div className="mb-2">
+                        <div className="text-xs text-gray-400 mb-1">Subject</div>
+                        <input
+                          type="text"
+                          value={emailDrafts[action._id].subject}
+                          onChange={e => setEmailDrafts(prev => ({ ...prev, [action._id]: { ...prev[action._id], subject: e.target.value } }))}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                        />
+                      </div>
+                      <div className="mb-3">
+                        <div className="text-xs text-gray-400 mb-1">Body</div>
+                        <textarea
+                          value={emailDrafts[action._id].body}
+                          onChange={e => setEmailDrafts(prev => ({ ...prev, [action._id]: { ...prev[action._id], body: e.target.value } }))}
+                          rows={8}
+                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => navigator.clipboard.writeText(`Subject: ${emailDrafts[action._id].subject}\n\n${emailDrafts[action._id].body}`)}
+                          className="px-4 py-1.5 text-xs font-medium rounded-lg"
+                          style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                        >
+                          Copy
+                        </button>
+                        <button
+                          onClick={() => setDraftingEmail(null)}
+                          className="px-3 py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              )}
 
               {/* Outcome input — shown when marking done */}
               {completing === action._id && (

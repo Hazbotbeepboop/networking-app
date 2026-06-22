@@ -17,6 +17,7 @@ function QuickCapture({
   captureAcceptedActions, setCaptureAcceptedActions,
   chatHistory, setChatHistory,
   conversationTitle, setConversationTitle,
+  savedConversationId, setSavedConversationId,
 }) {
   const [people, setPeople] = useState([])
   const [loading, setLoading] = useState(false)
@@ -26,7 +27,12 @@ function QuickCapture({
   const [suppressionNote, setSuppressionNote] = useState('')
   const [acceptingIndex, setAcceptingIndex] = useState(null)
   const [acceptDueDate, setAcceptDueDate] = useState('')
+  const [saveStatus, setSaveStatus] = useState(null) // 'saving' | 'saved' | null
+  const savedIdRef = useRef(savedConversationId)
   const chatBottomRef = useRef(null)
+
+  // Keep ref in sync with lifted state (survives remount)
+  useEffect(() => { savedIdRef.current = savedConversationId }, [savedConversationId])
 
   useEffect(() => {
     authFetch('/people')
@@ -48,6 +54,10 @@ function QuickCapture({
     setCaptureAcceptedActions([])
     setChatHistory([])
     setSuppressingIndex(null)
+
+    setSavedConversationId(null)
+    savedIdRef.current = null
+    setSaveStatus(null)
 
     authFetch('/insights/capture', {
       method: 'POST',
@@ -72,10 +82,36 @@ function QuickCapture({
           .replace(/SUGGESTED_SAVES:.*$/m, '')
           .trim()
 
-        setChatHistory([
+        const seedHistory = [
           { role: 'user', content: captureText },
           { role: 'assistant', content: intelligenceText }
-        ])
+        ]
+        setChatHistory(seedHistory)
+
+        // Auto-save immediately
+        const savesForSave = data.suggestedSaves || []
+        const relatedPeopleNames = savesForSave.filter(n => n !== 'MY_JOURNAL')
+        const folder = savesForSave.includes('MY_JOURNAL') ? 'MY_JOURNAL' : null
+        setSaveStatus('saving')
+        authFetch('/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: data.conversationTitle || captureText.slice(0, 60),
+            captureText,
+            messages: seedHistory,
+            relatedPeopleNames,
+            folder
+          })
+        })
+          .then(r => r.json())
+          .then(saved => {
+            savedIdRef.current = saved._id
+            setSavedConversationId(saved._id)
+            setSaveStatus('saved')
+          })
+          .catch(() => setSaveStatus(null))
+
         setLoading(false)
       })
       .catch(err => { console.error(err); setLoading(false) })
@@ -97,7 +133,18 @@ function QuickCapture({
     })
       .then(res => res.json())
       .then(data => {
-        setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }])
+        const newHistory = [...updatedHistory, { role: 'assistant', content: data.response }]
+        setChatHistory(newHistory)
+
+        // Auto-update saved conversation
+        if (savedIdRef.current) {
+          authFetch(`/conversations/${savedIdRef.current}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: newHistory })
+          }).catch(() => {})
+        }
+
         // Add new actions
         if (data.newActions?.length > 0) {
           setCapturePendingActions(prev => [...prev, ...data.newActions])
@@ -107,6 +154,15 @@ function QuickCapture({
           setCapturePendingActions(prev => prev.filter(action =>
             !data.retireActions.includes(action.description)
           ))
+        }
+        // Merge any newly mentioned people into saves and update
+        if (data.suggestedSaves?.length > 0) {
+          setCaptureSaves(prev => {
+            const merged = { ...prev }
+            data.suggestedSaves.forEach(name => { if (!merged[name]) merged[name] = true })
+            handleUpdateTags(merged, conversationTitle)
+            return merged
+          })
         }
         setChatLoading(false)
       })
@@ -182,35 +238,18 @@ function QuickCapture({
       .catch(err => console.error('Failed to save suppression:', err))
   }
 
-  const handleSaveConversation = () => {
-    const selectedNames = Object.entries(captureSaves)
+  const handleUpdateTags = (saves, title) => {
+    if (!savedIdRef.current) return
+    const selectedNames = Object.entries(saves)
       .filter(([, checked]) => checked)
       .map(([name]) => name)
-
     const relatedPeopleNames = selectedNames.filter(n => n !== 'MY_JOURNAL')
     const folder = selectedNames.includes('MY_JOURNAL') ? 'MY_JOURNAL' : null
-
-    authFetch('/conversations', {
-      method: 'POST',
+    authFetch(`/conversations/${savedIdRef.current}`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: conversationTitle,
-        captureText,
-        messages: chatHistory,
-        relatedPeopleNames,
-        folder
-      })
-    })
-      .then(() => {
-        setCaptureText('')
-        setCaptureResult(null)
-        setCaptureSaves({})
-        setCapturePendingActions([])
-        setCaptureAcceptedActions([])
-        setChatHistory([])
-        setConversationTitle('')
-      })
-      .catch(err => console.error('Failed to save conversation:', err))
+      body: JSON.stringify({ title, relatedPeopleNames, folder })
+    }).catch(err => console.error('Failed to update conversation:', err))
   }
 
   const handleNewCapture = () => {
@@ -223,6 +262,9 @@ function QuickCapture({
     setConversationTitle('')
     setSuppressingIndex(null)
     setSuppressionNote('')
+    setSavedConversationId(null)
+    savedIdRef.current = null
+    setSaveStatus(null)
   }
 
   return (
@@ -466,31 +508,51 @@ function QuickCapture({
 
           <div className="border-t border-gray-100" />
 
-          {/* Save to */}
+          {/* Saved conversation */}
           <div>
-            <div className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-3">Save conversation to</div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-medium tracking-widest text-gray-400 uppercase">Conversation</div>
+              {saveStatus === 'saving' && <span className="text-xs text-gray-300">Saving…</span>}
+              {saveStatus === 'saved' && <span className="text-xs text-gray-300">Auto-saved ✓</span>}
+            </div>
 
             {/* Editable title */}
-            <div className="mb-3">
+            <div className="flex gap-2 mb-3">
               <input
                 value={conversationTitle}
                 onChange={e => setConversationTitle(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleUpdateTags(captureSaves, conversationTitle) } }}
                 placeholder="Conversation title…"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
               />
+              <button
+                onClick={() => handleUpdateTags(captureSaves, conversationTitle)}
+                className="px-3 py-2 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                style={{ color: '#B08D57' }}
+              >
+                Save
+              </button>
             </div>
 
             <div className="space-y-2">
               <label className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
                 <input type="checkbox" checked={captureSaves['MY_JOURNAL'] || false}
-                  onChange={e => setCaptureSaves({ ...captureSaves, MY_JOURNAL: e.target.checked })}
+                  onChange={e => {
+                    const newSaves = { ...captureSaves, MY_JOURNAL: e.target.checked }
+                    setCaptureSaves(newSaves)
+                    handleUpdateTags(newSaves, conversationTitle)
+                  }}
                   className="accent-[#B08D57]" />
                 <span className="text-sm text-gray-800">My journal</span>
               </label>
               {people.map(person => (
                 <label key={person._id} className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
                   <input type="checkbox" checked={captureSaves[person.name] || false}
-                    onChange={e => setCaptureSaves({ ...captureSaves, [person.name]: e.target.checked })}
+                    onChange={e => {
+                      const newSaves = { ...captureSaves, [person.name]: e.target.checked }
+                      setCaptureSaves(newSaves)
+                      handleUpdateTags(newSaves, conversationTitle)
+                    }}
                     className="accent-[#B08D57]" />
                   <div>
                     <div className="text-sm text-gray-800">{person.name}</div>
@@ -499,11 +561,6 @@ function QuickCapture({
                 </label>
               ))}
             </div>
-            <button onClick={handleSaveConversation}
-              className="mt-4 px-5 py-2.5 text-sm font-medium rounded-lg"
-              style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}>
-              Save conversation
-            </button>
           </div>
         </div>
       )}

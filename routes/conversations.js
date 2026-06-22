@@ -101,6 +101,41 @@ router.post('/', async (req, res) => {
   }
 })
 
+// ── Update an existing conversation ──────────────────────────────────────────
+router.put('/:id', async (req, res) => {
+  try {
+    const { title, captureText, messages, relatedPeopleNames, folder } = req.body
+    const userId = req.user.userId
+
+    const update = {}
+    if (title !== undefined) update.title = title
+    if (captureText !== undefined) update.captureText = captureText
+    if (messages !== undefined) update.messages = messages
+    if (folder !== undefined) update.folder = folder || null
+
+    if (relatedPeopleNames !== undefined) {
+      const people = await Person.find({ userId })
+      update.relatedPeople = relatedPeopleNames
+        .map(name => {
+          const match = people.find(p => p.name.toLowerCase() === name.toLowerCase())
+          return match ? match._id : null
+        })
+        .filter(Boolean)
+    }
+
+    const conversation = await Conversation.findOneAndUpdate(
+      { _id: req.params.id, userId },
+      { $set: update },
+      { new: true }
+    )
+    if (!conversation) return res.status(404).json({ error: 'Conversation not found' })
+    res.json(conversation)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ── Delete a conversation ─────────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {

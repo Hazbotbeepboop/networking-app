@@ -334,7 +334,10 @@ Only include new actions not already suggested. If no new actions, omit the ACTI
 If the user indicates they have already done something, or a pending action is no longer relevant, retire it using the EXACT description string from CURRENT PENDING ACTIONS above:
 RETIRE_ACTION: <exact description string>
 
-Only emit RETIRE_ACTION lines for actions that are genuinely superseded. If no actions need retiring, omit entirely.`
+Only emit RETIRE_ACTION lines for actions that are genuinely superseded. If no actions need retiring, omit entirely.
+
+If new people from the network are mentioned in this message that should be linked to the conversation, include:
+SUGGESTED_SAVES: [comma separated names from NETWORK, or MY_JOURNAL, or omit entirely if no new ones]`
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -354,13 +357,95 @@ Only emit RETIRE_ACTION lines for actions that are genuinely superseded. If no a
     const retireLines = [...responseText.matchAll(/^RETIRE_ACTION: (.+)$/gm)]
     const retireActions = retireLines.map(match => match[1].trim())
 
+    const savesMatch = responseText.match(/SUGGESTED_SAVES: \[(.+)\]/)
+    const suggestedSaves = savesMatch ? savesMatch[1].split(',').map(s => s.trim()).filter(Boolean) : []
+
     const displayText = responseText
       .replace(/^ACTION:.*$/gm, '')
       .replace(/^RETIRE_ACTION:.*$/gm, '')
+      .replace(/^SUGGESTED_SAVES:.*$/gm, '')
       .trim()
 
-    res.json({ response: displayText, newActions, retireActions })
+    res.json({ response: displayText, newActions, retireActions, suggestedSaves })
 
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── Draft email ───────────────────────────────────────────────────────────────
+router.post('/draft-email', async (req, res) => {
+  try {
+    const { actionId } = req.body
+    const userId = req.user.userId
+
+    const action = await Action.findOne({ _id: actionId, userId })
+    if (!action) return res.status(404).json({ error: 'Action not found' })
+
+    const me = await Me.findOne({ userId })
+    const allPeople = await Person.find({ userId })
+    const allConversations = await Conversation.find({ userId }).sort({ createdAt: -1 }).select('title messages relatedPeople folder createdAt')
+
+    const peopleMap = {}
+    allPeople.forEach(p => { peopleMap[p._id.toString()] = p.name })
+
+    let person = null
+    if (action.personId) {
+      person = await Person.findOne({ _id: action.personId, userId })
+    }
+
+    const personConversations = person
+      ? allConversations.filter(c => c.relatedPeople.some(pid => pid.toString() === person._id.toString()))
+      : []
+
+    const recipientSection = person
+      ? `RECIPIENT:
+Name: ${person.name}
+Role: ${person.role || '—'}
+Company: ${person.company || '—'}
+Where met: ${person.whereMet || '—'}
+Notes: ${person.notes || '—'}
+
+CONVERSATION HISTORY WITH ${person.name.toUpperCase()}:
+${formatAllConversations(personConversations, peopleMap)}`
+      : `RECIPIENT: ${action.personName || 'unknown'}`
+
+    const prompt = `You are Varys. Draft a real, send-ready email for the user to execute the action below.
+
+MY PROFILE:
+Name: ${me?.name || 'unknown'}
+Role: ${me?.role || 'unknown'}
+Goals: ${me?.goals || 'not specified'}
+
+${recipientSection}
+
+ACTION TO EXECUTE:
+Type: ${action.type}
+Description: ${action.description}
+
+Calibrate tone to the relationship — infer warmth and formality from the conversation history. If there is no history, default to professional but warm. Do not mention Varys or AI.
+
+For introductions, draft a three-way intro email addressed to both parties.
+
+Respond in this exact format, no preamble:
+SUBJECT: [subject line]
+BODY:
+[email body]`
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }]
+    })
+
+    const text = message.content[0].text
+    const subjectMatch = text.match(/^SUBJECT: (.+)$/m)
+    const bodyMatch = text.match(/BODY:\n([\s\S]+)$/)
+    const subject = subjectMatch ? subjectMatch[1].trim() : ''
+    const body = bodyMatch ? bodyMatch[1].trim() : text
+
+    res.json({ subject, body })
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: err.message })

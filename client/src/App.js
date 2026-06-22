@@ -89,6 +89,7 @@ function App() {
   const [captureAcceptedActions, setCaptureAcceptedActions] = useState([])
   const [chatHistory, setChatHistory] = useState([]) // multi-turn conversation history
   const [conversationTitle, setConversationTitle] = useState('')
+  const [savedConversationId, setSavedConversationId] = useState(null)
 
   const handlePersonAdded = (newPerson) => {
     setPeople(prev => [...prev, newPerson])
@@ -116,6 +117,7 @@ function App() {
     captureAcceptedActions, setCaptureAcceptedActions,
     chatHistory, setChatHistory,
     conversationTitle, setConversationTitle,
+    savedConversationId, setSavedConversationId,
   }
 
   return (
