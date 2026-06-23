@@ -52,7 +52,7 @@ app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
 const cron = require('node-cron')
 const { runDigest } = require('./services/digest')
 
-// Every Monday at 8:00am Australia/Sydney (AEST/AEDT — change to Australia/Brisbane if you're in QLD)
+// Every Monday at 8:00am AEST (Queensland, no DST)
 cron.schedule('0 8 * * 1', async () => {
   console.log('[cron] Running weekly digest...')
   try {
@@ -60,6 +60,6 @@ cron.schedule('0 8 * * 1', async () => {
   } catch (err) {
     console.error('[cron] Digest failed:', err)
   }
-}, { timezone: 'Australia/Sydney' })
+}, { timezone: 'Australia/Brisbane' })
 
 console.log('[cron] Weekly digest scheduled — Mondays 8am AEST')
