@@ -12,6 +12,8 @@ function PersonDetail() {
   const [selectedConversation, setSelectedConversation] = useState(null)
   const [insights, setInsights] = useState(null)
   const [loadingInsights, setLoadingInsights] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
 
   useEffect(() => {
     authFetch(`/people/${id}`)
@@ -70,6 +72,31 @@ function PersonDetail() {
       .catch(err => {
         console.error(err)
         setLoadingInsights(false)
+      })
+  }
+
+  const handleSaveNote = () => {
+    if (!noteText.trim()) return
+    setSavingNote(true)
+    const title = noteText.trim().split('\n')[0].slice(0, 60) || 'Note'
+    authFetch('/conversations', {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        captureText: noteText.trim(),
+        messages: [{ role: 'user', content: noteText.trim() }],
+        relatedPeopleNames: [person.name],
+      }),
+    })
+      .then(res => res.json())
+      .then(saved => {
+        setConversations(prev => [saved, ...prev])
+        setNoteText('')
+        setSavingNote(false)
+      })
+      .catch(err => {
+        console.error(err)
+        setSavingNote(false)
       })
   }
 
@@ -233,6 +260,28 @@ function PersonDetail() {
       {/* Conversations */}
       <div className="bg-white border border-gray-200 rounded-xl p-6">
         <div className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-4">Conversations</div>
+
+        {!selectedConversation && (
+          <div className="mb-4">
+            <textarea
+              value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              placeholder="Add a note about this person…"
+              rows={3}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none"
+            />
+            <div className="flex justify-end mt-2">
+              <button
+                onClick={handleSaveNote}
+                disabled={savingNote || !noteText.trim()}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg disabled:opacity-40 transition-opacity"
+                style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+              >
+                {savingNote ? 'Saving…' : 'Save note'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {selectedConversation ? (
           <div>

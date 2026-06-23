@@ -7,6 +7,8 @@ function Me() {
   const [formData, setFormData] = useState({})
   const [conversations, setConversations] = useState([])
   const [selectedConversation, setSelectedConversation] = useState(null)
+  const [entryText, setEntryText] = useState('')
+  const [savingEntry, setSavingEntry] = useState(false)
 
   useEffect(() => {
     authFetch('/me')
@@ -46,6 +48,32 @@ function Me() {
         if (selectedConversation?._id === convId) setSelectedConversation(null)
       })
       .catch(err => console.error(err))
+  }
+
+  const handleSaveEntry = () => {
+    if (!entryText.trim()) return
+    setSavingEntry(true)
+    const title = entryText.trim().split('\n')[0].slice(0, 60) || 'Journal entry'
+    authFetch('/conversations', {
+      method: 'POST',
+      body: JSON.stringify({
+        title,
+        captureText: entryText.trim(),
+        messages: [{ role: 'user', content: entryText.trim() }],
+        relatedPeopleNames: [],
+        folder: 'MY_JOURNAL',
+      }),
+    })
+      .then(res => res.json())
+      .then(saved => {
+        setConversations(prev => [saved, ...prev])
+        setEntryText('')
+        setSavingEntry(false)
+      })
+      .catch(err => {
+        console.error(err)
+        setSavingEntry(false)
+      })
   }
 
   if (!me) return (
@@ -191,9 +219,31 @@ function Me() {
         )}
       </div>
 
-      {/* Journal conversations */}
+      {/* Journal */}
       <div className="bg-white border border-gray-200 rounded-xl p-6">
         <div className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-4">Journal</div>
+
+        {!selectedConversation && (
+          <div className="mb-4">
+            <textarea
+              value={entryText}
+              onChange={e => setEntryText(e.target.value)}
+              placeholder="Write a journal entry…"
+              rows={3}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none"
+            />
+            <div className="flex justify-end mt-2">
+              <button
+                onClick={handleSaveEntry}
+                disabled={savingEntry || !entryText.trim()}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg disabled:opacity-40 transition-opacity"
+                style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+              >
+                {savingEntry ? 'Saving…' : 'Save entry'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {selectedConversation ? (
           <div>
@@ -238,7 +288,7 @@ function Me() {
         ) : (
           <div className="space-y-2">
             {conversations.length === 0 && (
-              <p className="text-sm text-gray-300 py-2">No journal conversations yet. Save a capture to "My journal" to store it here.</p>
+              <p className="text-sm text-gray-300 py-2">No journal entries yet.</p>
             )}
             {conversations.map(conv => (
               <div

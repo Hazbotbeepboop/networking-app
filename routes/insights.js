@@ -374,6 +374,57 @@ SUGGESTED_SAVES: [comma separated names from NETWORK, or MY_JOURNAL, or omit ent
   }
 })
 
+// ── Enrich person profile from free-text context ─────────────────────────────
+router.post('/enrich-person', async (req, res) => {
+  try {
+    const { personId, context } = req.body
+    const userId = req.user.userId
+
+    const person = await Person.findOne({ _id: personId, userId })
+    if (!person) return res.status(404).json({ error: 'Person not found' })
+
+    const prompt = `Based on the following context about ${person.name}, extract or infer profile fields for a networking CRM.
+
+CONTEXT:
+"${context}"
+
+Return ONLY a valid JSON object. Omit any fields you cannot determine. Use these exact keys:
+{
+  "role": "job title or role",
+  "company": "company or organisation name",
+  "goals": "what they are working towards or trying to achieve",
+  "canHelpWith": "what they can concretely help others with",
+  "notes": "relevant background, context, or things to remember",
+  "whereMet": "where or how you know them"
+}`
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 512,
+      messages: [{ role: 'user', content: prompt }]
+    })
+
+    const text = message.content[0].text
+    const jsonMatch = text.match(/\{[\s\S]+\}/)
+    if (!jsonMatch) return res.status(500).json({ error: 'Could not parse AI response' })
+
+    const fields = JSON.parse(jsonMatch[0])
+    const update = {}
+    if (fields.role) update.role = fields.role
+    if (fields.company) update.company = fields.company
+    if (fields.goals) update.goals = fields.goals
+    if (fields.canHelpWith) update.canHelpWith = fields.canHelpWith
+    if (fields.notes) update.notes = fields.notes
+    if (fields.whereMet) update.whereMet = fields.whereMet
+
+    const updated = await Person.findOneAndUpdate({ _id: personId, userId }, update, { new: true })
+    res.json(updated)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ── Draft email ───────────────────────────────────────────────────────────────
 router.post('/draft-email', async (req, res) => {
   try {

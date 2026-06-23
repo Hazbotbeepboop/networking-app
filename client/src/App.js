@@ -8,6 +8,7 @@ import QuickCapture from './components/QuickCapture'
 import Login from './components/Login'
 import Actions from './components/Actions'
 import Conversations from './components/Conversations'
+import ImportContacts from './components/ImportContacts'
 
 export function authFetch(url, options = {}) {
   const token = localStorage.getItem('token')
@@ -90,9 +91,15 @@ function App() {
   const [chatHistory, setChatHistory] = useState([]) // multi-turn conversation history
   const [conversationTitle, setConversationTitle] = useState('')
   const [savedConversationId, setSavedConversationId] = useState(null)
+  const [showImport, setShowImport] = useState(false)
 
   const handlePersonAdded = (newPerson) => {
     setPeople(prev => [...prev, newPerson])
+  }
+
+  const handlePeopleImported = (newPeople) => {
+    setPeople(prev => [...prev, ...newPeople])
+    setShowImport(false)
   }
 
   function handleLogin(newToken) {
@@ -129,6 +136,24 @@ function App() {
             <Route path="/" element={<QuickCapture {...captureProps} />} />
             <Route path="/network" element={
               <>
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-lg font-medium text-gray-900">Network</h2>
+                  </div>
+                  <button
+                    onClick={() => setShowImport(v => !v)}
+                    className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    style={{ color: '#B08D57' }}
+                  >
+                    {showImport ? '✕ Cancel import' : '↑ Import from LinkedIn'}
+                  </button>
+                </div>
+                {showImport && (
+                  <ImportContacts
+                    existingPeople={people}
+                    onImportComplete={handlePeopleImported}
+                  />
+                )}
                 <AddPerson onPersonAdded={handlePersonAdded} />
                 <PeopleList people={people} setPeople={setPeople} />
               </>

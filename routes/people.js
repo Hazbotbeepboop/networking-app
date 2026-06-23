@@ -49,6 +49,34 @@ router.put('/:id', async (req, res) => {
   }
 })
 
+// Bulk import contacts
+router.post('/import', async (req, res) => {
+  try {
+    const { contacts } = req.body
+    const userId = req.user.userId
+
+    const existing = await Person.find({ userId }).select('name')
+    const existingNames = new Set(existing.map(p => p.name.toLowerCase().trim()))
+
+    const toCreate = (contacts || []).filter(c => c.name && !existingNames.has(c.name.toLowerCase().trim()))
+
+    const created = toCreate.length > 0
+      ? await Person.insertMany(toCreate.map(c => ({
+          userId,
+          name: c.name,
+          role: c.role || null,
+          company: c.company || null,
+          whereMet: c.whereMet || null,
+        })))
+      : []
+
+    res.json({ created, skipped: contacts.length - toCreate.length, total: contacts.length })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // Delete a person
 router.delete('/:id', async (req, res) => {
   try {
