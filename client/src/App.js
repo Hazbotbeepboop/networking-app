@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom'
 import PeopleList from './components/PeopleList'
 import AddPerson from './components/AddPerson'
@@ -95,6 +95,15 @@ function App() {
   const [showImport, setShowImport] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
 
+  // Check whether to show onboarding whenever token is set
+  useEffect(() => {
+    if (!token) return
+    fetch('/me', { headers: { Authorization: `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(me => { if (!me?.name) setShowOnboarding(true) })
+      .catch(() => {})
+  }, [token])
+
   const handlePersonAdded = (newPerson) => {
     setPeople(prev => [...prev, newPerson])
   }
@@ -104,15 +113,8 @@ function App() {
     setShowImport(false)
   }
 
-  async function handleLogin(newToken) {
+  function handleLogin(newToken) {
     setToken(newToken)
-    try {
-      const res = await fetch('/me', {
-        headers: { Authorization: `Bearer ${newToken}` },
-      })
-      const me = await res.json()
-      if (!me?.name) setShowOnboarding(true)
-    } catch (_) {}
   }
 
   function handleLogout() {
