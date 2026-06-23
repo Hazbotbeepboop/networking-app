@@ -141,7 +141,10 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-gray-50">
-        {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}
+        {showOnboarding && <Onboarding onComplete={() => {
+          setShowOnboarding(false)
+          authFetch('/people').then(res => res.json()).then(data => { if (Array.isArray(data)) setPeople(data) }).catch(() => {})
+        }} />}
         <NavBar userEmail={userEmail} onLogout={handleLogout} />
         <main className="max-w-3xl mx-auto px-6 py-8">
           <Routes>

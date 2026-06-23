@@ -120,6 +120,16 @@ function Me() {
                 </div>
               </div>
               <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Company</label>
+                <input
+                  name="company"
+                  placeholder="Your company or organisation"
+                  value={formData.company || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                />
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Goals</label>
                 <textarea
                   name="goals"
@@ -181,7 +191,11 @@ function Me() {
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-gray-900">{me.name || 'Your name'}</h3>
-                  {me.role && <p className="text-sm text-gray-400 mt-0.5">{me.role}</p>}
+                  {(me.role || me.company) && (
+                    <p className="text-sm text-gray-400 mt-0.5">
+                      {[me.role, me.company].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
                 </div>
               </div>
               <button

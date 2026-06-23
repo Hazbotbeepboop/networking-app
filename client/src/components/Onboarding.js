@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { authFetch } from '../App'
 import ImportContacts from './ImportContacts'
 
-const STEPS = ['about', 'goals', 'how', 'contact']
+const STEPS = ['welcome', 'about', 'goals', 'how', 'contact']
 
 export default function Onboarding({ onComplete }) {
   const [step, setStep] = useState(0)
@@ -22,8 +22,12 @@ export default function Onboarding({ onComplete }) {
 
   // Step 4 — First contact (manual)
   const [contactName, setContactName] = useState('')
+  const [contactRole, setContactRole] = useState('')
   const [contactCompany, setContactCompany] = useState('')
   const [contactWhereMet, setContactWhereMet] = useState('')
+  const [contactGoals, setContactGoals] = useState('')
+  const [contactCanHelpWith, setContactCanHelpWith] = useState('')
+  const [contactNotes, setContactNotes] = useState('')
   const [savedContacts, setSavedContacts] = useState([])
 
   async function handleProfileNext() {
@@ -34,7 +38,7 @@ export default function Onboarding({ onComplete }) {
         method: 'PUT',
         body: JSON.stringify({ name: name.trim(), role: role.trim(), company: company.trim() }),
       })
-      setStep(1)
+      setStep(2)
     } finally {
       setSaving(false)
     }
@@ -47,7 +51,7 @@ export default function Onboarding({ onComplete }) {
         method: 'PUT',
         body: JSON.stringify({ goals: goals.trim(), lookingFor: lookingFor.trim() }),
       })
-      setStep(2)
+      setStep(3)
     } finally {
       setSaving(false)
     }
@@ -61,14 +65,22 @@ export default function Onboarding({ onComplete }) {
           method: 'POST',
           body: JSON.stringify({
             name: contactName.trim(),
+            role: contactRole.trim(),
             company: contactCompany.trim(),
             whereMet: contactWhereMet.trim(),
+            goals: contactGoals.trim(),
+            canHelpWith: contactCanHelpWith.trim(),
+            notes: contactNotes.trim(),
           }),
         })
         setSavedContacts(prev => [...prev, contactName.trim()])
         setContactName('')
+        setContactRole('')
         setContactCompany('')
         setContactWhereMet('')
+        setContactGoals('')
+        setContactCanHelpWith('')
+        setContactNotes('')
       } catch (err) {
         console.error('Failed to add contact:', err)
       } finally {
@@ -79,36 +91,65 @@ export default function Onboarding({ onComplete }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/80">
-      <div className="w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
 
         {/* Header */}
         <div style={{ backgroundColor: '#1C2B3A' }} className="px-8 pt-8 pb-6">
           <div className="text-sm font-medium tracking-widest text-white mb-1">
             VAR<span style={{ color: '#B08D57' }}>Y</span>S
           </div>
-          <p className="text-sm" style={{ color: '#7a99b0' }}>
-            Let's get you set up — takes 60 seconds.
-          </p>
-          {/* Step dots */}
-          <div className="flex gap-1.5 mt-4">
-            {STEPS.map((_, i) => (
-              <div
-                key={i}
-                className="h-1 rounded-full transition-all"
-                style={{
-                  width: i === step ? '24px' : '8px',
-                  backgroundColor: i <= step ? '#B08D57' : 'rgba(255,255,255,0.2)',
-                }}
-              />
-            ))}
-          </div>
+          {step > 0 && (
+            <p className="text-sm" style={{ color: '#7a99b0' }}>
+              Let's get you set up.
+            </p>
+          )}
+          {/* Step dots — hidden on welcome screen */}
+          {step > 0 && (
+            <div className="flex gap-1.5 mt-4">
+              {STEPS.slice(1).map((_, i) => (
+                <div
+                  key={i}
+                  className="h-1 rounded-full transition-all"
+                  style={{
+                    width: i === step - 1 ? '24px' : '8px',
+                    backgroundColor: i <= step - 1 ? '#B08D57' : 'rgba(255,255,255,0.2)',
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Body */}
-        <div className="px-8 py-7">
+        <div className="px-8 py-7 overflow-y-auto flex-1">
 
-          {/* Step 0 — About you */}
+          {/* Step 0 — Welcome */}
           {step === 0 && (
+            <div>
+              <h2 className="text-base font-medium text-gray-900 mb-3">Welcome to Varys</h2>
+              <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                Varys is your private networking intelligence advisor. It tracks your contacts, monitors what's happening in their world, and surfaces opportunities you'd otherwise miss.
+              </p>
+              <p className="text-sm text-gray-600 leading-relaxed mb-4">
+                The more you use it — adding contacts, chatting through situations, journalling what's on your mind — the more useful it becomes. Varys gets sharper the more context it has.
+              </p>
+              <p className="text-sm text-gray-600 leading-relaxed mb-6">
+                Setup can take as little as a minute — but the more you put in now, the more Varys can do for you from day one.
+              </p>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setStep(1)}
+                  className="px-5 py-2 text-sm font-medium rounded-lg"
+                  style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                >
+                  Get started →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 1 — About you */}
+          {step === 1 && (
             <div>
               <h2 className="text-base font-medium text-gray-900 mb-1">About you</h2>
               <p className="text-xs text-gray-400 mb-5">This helps Varys contextualise your network.</p>
@@ -161,8 +202,8 @@ export default function Onboarding({ onComplete }) {
             </div>
           )}
 
-          {/* Step 1 — Goals */}
-          {step === 1 && (
+          {/* Step 2 — Goals */}
+          {step === 2 && (
             <div>
               <h2 className="text-base font-medium text-gray-900 mb-1">What are you working towards?</h2>
               <p className="text-xs text-gray-400 mb-5">Varys uses this to make your weekly digest relevant.</p>
@@ -191,7 +232,7 @@ export default function Onboarding({ onComplete }) {
               </div>
               <div className="flex justify-between items-center mt-6">
                 <button
-                  onClick={() => setStep(2)}
+                  onClick={() => setStep(3)}
                   className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   Skip
@@ -208,21 +249,21 @@ export default function Onboarding({ onComplete }) {
             </div>
           )}
 
-          {/* Step 2 — How to add contacts */}
-          {step === 2 && (
+          {/* Step 3 — How to add contacts */}
+          {step === 3 && (
             <div>
               <h2 className="text-base font-medium text-gray-900 mb-1">Add your contacts</h2>
               <p className="text-xs text-gray-400 mb-5">How would you like to get started?</p>
               <div className="space-y-3">
                 <button
-                  onClick={() => { setAddMethod('linkedin'); setStep(3) }}
+                  onClick={() => { setAddMethod('linkedin'); setStep(4) }}
                   className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:border-gray-400 transition-colors group"
                 >
                   <div className="text-sm font-medium text-gray-800 group-hover:text-gray-900">↑ Import from LinkedIn</div>
                   <div className="text-xs text-gray-400 mt-0.5">Upload your LinkedIn connections CSV</div>
                 </button>
                 <button
-                  onClick={() => { setAddMethod('manual'); setStep(3) }}
+                  onClick={() => { setAddMethod('manual'); setStep(4) }}
                   className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:border-gray-400 transition-colors group"
                 >
                   <div className="text-sm font-medium text-gray-800 group-hover:text-gray-900">+ Add one contact manually</div>
@@ -240,8 +281,8 @@ export default function Onboarding({ onComplete }) {
             </div>
           )}
 
-          {/* Step 3 — LinkedIn import */}
-          {step === 3 && addMethod === 'linkedin' && (
+          {/* Step 4 — LinkedIn import */}
+          {step === 4 && addMethod === 'linkedin' && (
             <div>
               <h2 className="text-base font-medium text-gray-900 mb-1">Import from LinkedIn</h2>
               <p className="text-xs text-gray-400 mb-4">Upload your connections CSV. You can enrich contacts after import.</p>
@@ -261,8 +302,8 @@ export default function Onboarding({ onComplete }) {
             </div>
           )}
 
-          {/* Step 3 — Manual contact (when addMethod === 'manual') */}
-          {step === 3 && addMethod === 'manual' && (
+          {/* Step 4 — Manual contact (when addMethod === 'manual') */}
+          {step === 4 && addMethod === 'manual' && (
             <div>
               <h2 className="text-base font-medium text-gray-900 mb-1">Add your contacts</h2>
               <p className="text-xs text-gray-400 mb-4">The more contacts and context you give Varys, the better it gets at surfacing valuable opportunities in your network.</p>
@@ -278,32 +319,77 @@ export default function Onboarding({ onComplete }) {
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">
-                    {savedContacts.length === 0 ? 'Name *' : 'Add another (name)'}
+                    {savedContacts.length === 0 ? 'Name *' : 'Name *'}
                   </label>
                   <input
                     autoFocus
                     type="text"
                     value={contactName}
                     onChange={e => setContactName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && contactName.trim() && handleContactDone()}
                     placeholder="e.g. James Liu"
                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400"
                   />
                 </div>
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={contactCompany}
-                    onChange={e => setContactCompany(e.target.value)}
-                    placeholder="Company"
-                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400"
-                  />
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+                    <input
+                      type="text"
+                      value={contactRole}
+                      onChange={e => setContactRole(e.target.value)}
+                      placeholder="e.g. Investor, CTO"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Company</label>
+                    <input
+                      type="text"
+                      value={contactCompany}
+                      onChange={e => setContactCompany(e.target.value)}
+                      placeholder="e.g. Acme Corp"
+                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Where you met</label>
                   <input
                     type="text"
                     value={contactWhereMet}
                     onChange={e => setContactWhereMet(e.target.value)}
-                    placeholder="How you met"
-                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400"
+                    placeholder="e.g. SydStart conference, mutual intro from Sarah"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Their goals</label>
+                  <input
+                    type="text"
+                    value={contactGoals}
+                    onChange={e => setContactGoals(e.target.value)}
+                    placeholder="What are they working towards?"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Can help with</label>
+                  <input
+                    type="text"
+                    value={contactCanHelpWith}
+                    onChange={e => setContactCanHelpWith(e.target.value)}
+                    placeholder="What can they help you with?"
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                  <textarea
+                    value={contactNotes}
+                    onChange={e => setContactNotes(e.target.value)}
+                    placeholder="Anything else worth remembering"
+                    rows={2}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-gray-400 resize-none"
                   />
                 </div>
               </div>
@@ -314,16 +400,17 @@ export default function Onboarding({ onComplete }) {
                 ) : (
                   <button
                     onClick={onComplete}
-                    className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                    className="px-5 py-2 text-sm font-medium rounded-lg transition-opacity"
+                    style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
                   >
-                    Done adding
+                    Finish adding contacts
                   </button>
                 )}
                 <button
                   onClick={handleContactDone}
                   disabled={!contactName.trim() || saving}
-                  className="px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-40 transition-opacity"
-                  style={{ backgroundColor: '#1C2B3A' }}
+                  className="px-5 py-2 text-sm font-medium rounded-lg disabled:opacity-40 transition-opacity"
+                  style={{ backgroundColor: '#B08D57', color: '#1C2B3A' }}
                 >
                   {saving ? 'Saving…' : 'Add contact'}
                 </button>
