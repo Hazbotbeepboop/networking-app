@@ -9,6 +9,7 @@ import Login from './components/Login'
 import Actions from './components/Actions'
 import Conversations from './components/Conversations'
 import ImportContacts from './components/ImportContacts'
+import Onboarding from './components/Onboarding'
 
 export function authFetch(url, options = {}) {
   const token = localStorage.getItem('token')
@@ -92,6 +93,7 @@ function App() {
   const [conversationTitle, setConversationTitle] = useState('')
   const [savedConversationId, setSavedConversationId] = useState(null)
   const [showImport, setShowImport] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   const handlePersonAdded = (newPerson) => {
     setPeople(prev => [...prev, newPerson])
@@ -102,8 +104,15 @@ function App() {
     setShowImport(false)
   }
 
-  function handleLogin(newToken) {
+  async function handleLogin(newToken) {
     setToken(newToken)
+    try {
+      const res = await fetch('/me', {
+        headers: { Authorization: `Bearer ${newToken}` },
+      })
+      const me = await res.json()
+      if (!me?.name) setShowOnboarding(true)
+    } catch (_) {}
   }
 
   function handleLogout() {
@@ -130,6 +139,7 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-gray-50">
+        {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}
         <NavBar userEmail={userEmail} onLogout={handleLogout} />
         <main className="max-w-3xl mx-auto px-6 py-8">
           <Routes>
