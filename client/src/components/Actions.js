@@ -39,6 +39,8 @@ function Actions() {
   const [completing, setCompleting] = useState(null)
   const [outcomeText, setOutcomeText] = useState('')
   const [editingDueDate, setEditingDueDate] = useState(null) // action._id
+  const [editingDescription, setEditingDescription] = useState(null) // action._id
+  const [editDescriptionText, setEditDescriptionText] = useState('')
   const [draftingEmail, setDraftingEmail] = useState(null) // action._id
   const [emailDrafts, setEmailDrafts] = useState({}) // { [actionId]: { subject, body } }
   const [draftLoading, setDraftLoading] = useState(null) // action._id
@@ -90,6 +92,19 @@ function Actions() {
     }).catch(() => setDraftLoading(null))
   }
 
+  const handleSaveDescription = (id) => {
+    const text = editDescriptionText.trim()
+    if (!text) return
+    authFetch(`/actions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: text })
+    }).then(res => res.json()).then(updated => {
+      setActions(prev => prev.map(a => a._id === id ? { ...a, description: updated.description } : a))
+      setEditingDescription(null)
+    })
+  }
+
   const handleSetDueDate = (id, dueDate) => {
     authFetch(`/actions/${id}`, {
       method: 'PUT',
@@ -137,7 +152,34 @@ function Actions() {
                 </span>
 
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-gray-800 leading-snug">{action.description}</div>
+                  {editingDescription === action._id ? (
+                    <div>
+                      <textarea
+                        value={editDescriptionText}
+                        onChange={e => setEditDescriptionText(e.target.value)}
+                        rows={2}
+                        autoFocus
+                        className="w-full px-2 py-1.5 text-sm border border-[#B08D57] rounded-lg outline-none resize-none"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSaveDescription(action._id) }
+                          if (e.key === 'Escape') setEditingDescription(null)
+                        }}
+                      />
+                      <div className="flex gap-2 mt-1">
+                        <button onClick={() => handleSaveDescription(action._id)} className="text-xs font-medium" style={{ color: '#B08D57' }}>Save</button>
+                        <button onClick={() => setEditingDescription(null)} className="text-xs text-gray-300 hover:text-gray-500">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="text-sm text-gray-800 leading-snug cursor-pointer hover:text-gray-600 group"
+                      onClick={() => { setEditingDescription(action._id); setEditDescriptionText(action.description) }}
+                      title="Click to edit"
+                    >
+                      {action.description}
+                      <span className="ml-1.5 text-gray-200 group-hover:text-gray-400 text-xs">✎</span>
+                    </div>
+                  )}
                   {action.personId ? (
                     <Link
                       to={`/people/${action.personId._id}`}

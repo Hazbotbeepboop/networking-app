@@ -17,13 +17,17 @@ router.get('/', async (req, res) => {
 // Update action status (done or dismissed), optionally with outcome note
 router.put('/:id', async (req, res) => {
   try {
-    const update = { status: req.body.status }
+    const update = {}
+    if (req.body.status) update.status = req.body.status
     if (req.body.status === 'done') {
       update.completedAt = new Date()
       if (req.body.outcome) update.outcome = req.body.outcome
     }
     if (req.body.dueDate !== undefined) {
       update.dueDate = req.body.dueDate ? new Date(req.body.dueDate) : null
+    }
+    if (req.body.description !== undefined) {
+      update.description = req.body.description
     }
     const action = await Action.findOneAndUpdate(
       { _id: req.params.id, userId: req.user.userId },

@@ -1,6 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { authFetch } from '../App'
 
+const GUIDE_TIPS = [
+  {
+    title: 'Start with someone',
+    body: "Think of a person you spoke with recently — a coffee, a call, a message exchange. It doesn't have to be significant. Describe what happened naturally, as if telling a colleague.",
+    starters: [
+      'Had a coffee with ',
+      'Just got off a call with ',
+      'Met someone at an event — ',
+      'Been meaning to follow up with ',
+    ],
+    hint: 'Pick a starter or type freely, then hit Analyse.',
+  },
+  {
+    title: "That's the intelligence response",
+    body: "Varys read what you wrote and connected it to your network context. This is the core of how it works — every capture builds a richer picture over time.",
+    hint: 'Scroll down to keep the conversation going.',
+  },
+  {
+    title: 'Keep the conversation going',
+    body: "The chat box lets you go deeper — ask who to introduce, what to say in a follow-up, or anything about your network. Varys has context from everything you've captured in the past.",
+    hint: 'Scroll down to see suggested actions.',
+  },
+  {
+    title: 'Suggested actions',
+    body: "If Varys picked up on follow-ups or next steps, they appear here. Accept an action to log it with a due date — it'll show up in your actions tab so nothing slips through.",
+    hint: "Scroll down to see contact tags. Dismiss anything that doesn't apply.",
+  },
+  {
+    title: 'Contact tags',
+    body: "Varys detected people you mentioned and tagged this conversation to their profiles. You can turn tags on or off — tagged conversations show up when you view that contact's profile later.",
+    hint: 'Check or uncheck any name to adjust.',
+  },
+  {
+    title: "You're set",
+    body: "Every time you have a conversation worth remembering, log it here. The more you capture — and the more you chat — the more useful Varys becomes.",
+    hint: null,
+    done: true,
+  },
+]
+
 const TYPE_LABELS = {
   follow_up: 'Follow up',
   introduction: 'Introduction',
@@ -18,6 +58,7 @@ function QuickCapture({
   chatHistory, setChatHistory,
   conversationTitle, setConversationTitle,
   savedConversationId, setSavedConversationId,
+  newPeopleData, setNewPeopleData,
 }) {
   const [people, setPeople] = useState([])
   const [loading, setLoading] = useState(false)
@@ -28,8 +69,29 @@ function QuickCapture({
   const [acceptingIndex, setAcceptingIndex] = useState(null)
   const [acceptDueDate, setAcceptDueDate] = useState('')
   const [saveStatus, setSaveStatus] = useState(null) // 'saving' | 'saved' | null
+  const [analyseError, setAnalyseError] = useState(null)
+  const [chatError, setChatError] = useState(null)
+  const [newPersonForms, setNewPersonForms] = useState({}) // editable fields per new person index
+  const [addedPeople, setAddedPeople] = useState({})      // index → true once added
+  const [calSuggestions, setCalSuggestions] = useState([])
+  const [calSuggForms, setCalSuggForms] = useState({})
+  const [calSuggActions, setCalSuggActions] = useState({})
+  const [calSuggOpen, setCalSuggOpen] = useState(false)
   const savedIdRef = useRef(savedConversationId)
   const chatBottomRef = useRef(null)
+
+  // Guide state — only shows once, gated by localStorage
+  const [guideTip, setGuideTip] = useState(0)
+  const [guideDone, setGuideDone] = useState(
+    () => !!localStorage.getItem('varys_guide_done')
+  )
+
+  const dismissGuide = () => {
+    localStorage.setItem('varys_guide_done', '1')
+    setGuideDone(true)
+  }
+
+  const showGuide = !guideDone
 
   // Keep ref in sync with lifted state (survives remount)
   useEffect(() => { savedIdRef.current = savedConversationId }, [savedConversationId])
@@ -41,19 +103,37 @@ function QuickCapture({
   }, [])
 
   useEffect(() => {
+    authFetch('/insights/calendar-suggestions')
+      .then(res => res.json())
+      .then(data => { if (Array.isArray(data.suggestions)) setCalSuggestions(data.suggestions) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (chatBottomRef.current) {
       chatBottomRef.current.scrollIntoView({ behavior: 'smooth' })
     }
   }, [chatHistory])
 
+  // Auto-advance guide from tip 0 → 1 when analysis completes
+  useEffect(() => {
+    if (captureResult && showGuide && guideTip === 0) {
+      setGuideTip(1)
+    }
+  }, [captureResult]) // eslint-disable-line
+
   const handleAnalyse = () => {
     if (!captureText.trim()) return
     setLoading(true)
     setCaptureResult(null)
+    setAnalyseError(null)
     setCapturePendingActions([])
     setCaptureAcceptedActions([])
     setChatHistory([])
     setSuppressingIndex(null)
+    setNewPeopleData([])
+    setNewPersonForms({})
+    setAddedPeople({})
 
     setSavedConversationId(null)
     savedIdRef.current = null
@@ -67,6 +147,9 @@ function QuickCapture({
       .then(res => res.json())
       .then(data => {
         setCaptureResult(data)
+        setNewPeopleData(data.newPeopleData || [])
+        setNewPersonForms({})
+        setAddedPeople({})
         const initialSaves = {}
         data.suggestedSaves.forEach(name => { initialSaves[name] = true })
         setCaptureSaves(initialSaves)
@@ -114,7 +197,7 @@ function QuickCapture({
 
         setLoading(false)
       })
-      .catch(err => { console.error(err); setLoading(false) })
+      .catch(err => { console.error(err); setLoading(false); setAnalyseError('Something went wrong — please try again.') })
   }
 
   const handleChatSend = () => {
@@ -122,6 +205,7 @@ function QuickCapture({
     const userMessage = chatInput.trim()
     setChatInput('')
     setChatLoading(true)
+    setChatError(null)
 
     const updatedHistory = [...chatHistory, { role: 'user', content: userMessage }]
     setChatHistory(updatedHistory)
@@ -166,7 +250,7 @@ function QuickCapture({
         }
         setChatLoading(false)
       })
-      .catch(err => { console.error(err); setChatLoading(false) })
+      .catch(err => { console.error(err); setChatLoading(false); setChatError('Failed to send — please try again.') })
   }
 
   const handleKeyDown = (e) => {
@@ -265,6 +349,9 @@ function QuickCapture({
     setSavedConversationId(null)
     savedIdRef.current = null
     setSaveStatus(null)
+    setNewPeopleData([])
+    setNewPersonForms({})
+    setAddedPeople({})
   }
 
   return (
@@ -284,6 +371,206 @@ function QuickCapture({
           </button>
         )}
       </div>
+
+      {/* Guided first-session tip panel */}
+      {showGuide && (() => {
+        const tip = GUIDE_TIPS[guideTip]
+        const isFirst = guideTip === 0
+        const isLast = guideTip === GUIDE_TIPS.length - 1
+        return (
+          <div className="mb-5 rounded-xl overflow-hidden border border-[#B08D57]/30" style={{ backgroundColor: '#fdfaf5' }}>
+            <div className="px-5 pt-4 pb-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium tracking-widest uppercase" style={{ color: '#B08D57' }}>
+                      {guideTip + 1} of {GUIDE_TIPS.length}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">{tip.title}</h3>
+                  <p className="text-sm text-gray-600 leading-relaxed">{tip.body}</p>
+                  {tip.hint && (
+                    <p className="text-xs text-gray-400 mt-2 italic">{tip.hint}</p>
+                  )}
+                </div>
+                <button
+                  onClick={dismissGuide}
+                  className="text-gray-300 hover:text-gray-400 transition-colors flex-shrink-0 mt-0.5 text-lg leading-none"
+                  title="Dismiss guide"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Starter prompts — tip 0 only */}
+              {isFirst && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {tip.starters.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCaptureText(s)}
+                      className="px-3 py-1.5 text-xs rounded-lg border border-[#B08D57]/40 text-gray-600 hover:bg-[#B08D57]/10 transition-colors"
+                    >
+                      "{s}…"
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between px-5 py-3 border-t border-[#B08D57]/20">
+              <button
+                onClick={() => setGuideTip(t => Math.max(0, t - 1))}
+                disabled={isFirst}
+                className="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-0 transition-colors"
+              >
+                ← Back
+              </button>
+              <div className="flex gap-1">
+                {GUIDE_TIPS.map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-1 rounded-full transition-all"
+                    style={{
+                      width: i === guideTip ? '16px' : '6px',
+                      backgroundColor: i <= guideTip ? '#B08D57' : '#e5d9c4',
+                    }}
+                  />
+                ))}
+              </div>
+              {isLast ? (
+                <button
+                  onClick={dismissGuide}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg transition-opacity"
+                  style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                >
+                  Got it
+                </button>
+              ) : (
+                <button
+                  onClick={() => setGuideTip(t => Math.min(GUIDE_TIPS.length - 1, t + 1))}
+                  className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Next →
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Calendar contact suggestions */}
+      {calSuggestions.length > 0 && calSuggestions.some((_, i) => !calSuggActions[i]) && (
+        <div className="mb-4">
+          <button
+            onClick={() => setCalSuggOpen(o => !o)}
+            className="flex items-center gap-2 w-full text-left mb-2"
+          >
+            <span className="text-xs font-medium tracking-widest text-gray-400 uppercase">
+              From your calendar ({calSuggestions.filter((_, i) => !calSuggActions[i]).length})
+            </span>
+            <span className="text-gray-300 text-xs">{calSuggOpen ? '▲' : '▼'}</span>
+          </button>
+          {calSuggOpen && (
+            <div className="space-y-3">
+              {calSuggestions.map((person, i) => {
+                if (calSuggActions[i]) return null
+                const form = calSuggForms[i] ?? { name: person.name, role: '', company: '', notes: '' }
+                const setField = (field, val) =>
+                  setCalSuggForms(prev => ({ ...prev, [i]: { ...(prev[i] ?? { name: person.name, role: '', company: '', notes: '' }), [field]: val } }))
+                const suppress = (type) => {
+                  const value = type === 'event' ? person.eventTitle : (form.name || person.name)
+                  authFetch('/insights/calendar-suppress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, value })
+                  }).catch(err => console.error('suppress failed:', err))
+                  setCalSuggActions(prev => ({ ...prev, [i]: 'suppressed' }))
+                }
+                return (
+                  <div key={i} className="bg-white border border-gray-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <input
+                        value={form.name}
+                        onChange={e => setField('name', e.target.value)}
+                        className="flex-1 text-sm font-medium text-gray-800 border-b border-transparent hover:border-gray-200 focus:border-[#B08D57] outline-none transition-colors bg-transparent mr-3"
+                      />
+                      <button
+                        onClick={() => setCalSuggActions(prev => ({ ...prev, [i]: 'dismissed' }))}
+                        className="text-gray-300 hover:text-gray-400 transition-colors text-lg leading-none"
+                      >×</button>
+                    </div>
+                    <div className="text-xs text-gray-400 mb-3">
+                      {person.isPast ? 'Recent meeting' : 'Upcoming meeting'}: {person.eventTitle} — {person.date}
+                    </div>
+                    <div className="space-y-2 mb-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          value={form.role}
+                          onChange={e => setField('role', e.target.value)}
+                          placeholder="Role"
+                          className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                        />
+                        <input
+                          value={form.company}
+                          onChange={e => setField('company', e.target.value)}
+                          placeholder="Company"
+                          className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                        />
+                      </div>
+                      <textarea
+                        value={form.notes}
+                        onChange={e => setField('notes', e.target.value)}
+                        placeholder="Notes"
+                        rows={2}
+                        className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => {
+                          authFetch('/people', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              name: form.name || person.name,
+                              role: form.role || '',
+                              company: form.company || '',
+                              notes: form.notes || '',
+                            })
+                          })
+                            .then(res => res.json())
+                            .then(saved => {
+                              setPeople(prev => [...prev, saved])
+                              setCalSuggActions(prev => ({ ...prev, [i]: 'added' }))
+                            })
+                            .catch(err => console.error('Failed to add person:', err))
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg"
+                        style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                      >
+                        Add to network
+                      </button>
+                      <button
+                        onClick={() => suppress('event')}
+                        className="px-3 py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Stop suggesting this event
+                      </button>
+                      <button
+                        onClick={() => suppress('name')}
+                        className="px-3 py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Stop suggesting this person
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Capture box — stays visible so user can see what they wrote */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-4">
@@ -306,6 +593,10 @@ function QuickCapture({
           </button>
         </div>
       </div>
+
+      {analyseError && (
+        <p className="text-xs text-red-500 mt-2 mb-2">{analyseError}</p>
+      )}
 
       {/* Chat thread */}
       {chatHistory.length > 0 && (
@@ -379,6 +670,10 @@ function QuickCapture({
             </button>
           </div>
         </div>
+      )}
+
+      {chatError && (
+        <p className="text-xs text-red-500 mt-2 mb-1">{chatError}</p>
       )}
 
       {/* Actions and save — only show after analysis */}
@@ -506,6 +801,90 @@ function QuickCapture({
             </div>
           )}
 
+          <div className="border-t border-gray-100" />
+
+          {/* New people mentioned — offer to add to network */}
+          {newPeopleData.length > 0 && newPeopleData.some((_, i) => !addedPeople[i]) && (
+            <div>
+              <div className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-3">New people mentioned</div>
+              <div className="space-y-3">
+                {newPeopleData.map((person, i) => {
+                  if (addedPeople[i]) return null
+                  const form = newPersonForms[i] ?? person
+                  const setField = (field, val) =>
+                    setNewPersonForms(prev => ({ ...prev, [i]: { ...(prev[i] ?? person), [field]: val } }))
+                  return (
+                    <div key={i} className="bg-white border border-gray-200 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <input
+                          value={form.name ?? person.name}
+                          onChange={e => setField('name', e.target.value)}
+                          className="flex-1 text-sm font-medium text-gray-800 border-b border-transparent hover:border-gray-200 focus:border-[#B08D57] outline-none transition-colors bg-transparent mr-3"
+                        />
+                        <button
+                          onClick={() => setAddedPeople(prev => ({ ...prev, [i]: 'dismissed' }))}
+                          className="text-gray-300 hover:text-gray-400 transition-colors text-lg leading-none"
+                        >×</button>
+                      </div>
+                      <div className="space-y-2 mb-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            value={form.role || ''}
+                            onChange={e => setField('role', e.target.value)}
+                            placeholder="Role"
+                            className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                          />
+                          <input
+                            value={form.company || ''}
+                            onChange={e => setField('company', e.target.value)}
+                            placeholder="Company"
+                            className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                          />
+                        </div>
+                        <textarea
+                          value={form.notes || ''}
+                          onChange={e => setField('notes', e.target.value)}
+                          placeholder="Notes"
+                          rows={2}
+                          className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none"
+                        />
+                      </div>
+                      <button
+                        onClick={() => {
+                          authFetch('/people', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              name: form.name || person.name,
+                              role: form.role || '',
+                              company: form.company || '',
+                              notes: form.notes || '',
+                            })
+                          })
+                            .then(res => res.json())
+                            .then(saved => {
+                              setPeople(prev => [...prev, saved])
+                              setAddedPeople(prev => ({ ...prev, [i]: 'added' }))
+                              // Auto-tag this conversation to the new contact
+                              const newSaves = { ...captureSaves, [form.name || person.name]: true }
+                              setCaptureSaves(newSaves)
+                              handleUpdateTags(newSaves, conversationTitle)
+                            })
+                            .catch(err => console.error('Failed to add person:', err))
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium rounded-lg"
+                        style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                      >
+                        Add to network
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Divider */}
           <div className="border-t border-gray-100" />
 
           {/* Saved conversation */}

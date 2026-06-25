@@ -6,7 +6,8 @@ function PeopleList({ people, setPeople }) {
   useEffect(() => {
     authFetch('/people')
       .then(res => res.json())
-      .then(data => setPeople(data))
+      .then(data => { if (Array.isArray(data)) setPeople(data) })
+      .catch(() => {})
   }, [])
 
   return (

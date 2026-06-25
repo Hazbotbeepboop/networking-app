@@ -6,6 +6,9 @@ import PersonDetail from './components/PersonDetail'
 import Me from './components/Me'
 import QuickCapture from './components/QuickCapture'
 import Login from './components/Login'
+import ForgotPassword from './components/ForgotPassword'
+import ResetPassword from './components/ResetPassword'
+import Privacy from './components/Privacy'
 import Actions from './components/Actions'
 import Conversations from './components/Conversations'
 import ImportContacts from './components/ImportContacts'
@@ -21,6 +24,31 @@ export function authFetch(url, options = {}) {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   })
+}
+
+function CaptureNudgeBanner() {
+  const location = useLocation()
+  const [dismissed, setDismissed] = useState(false)
+  const onCapturePage = location.pathname === '/'
+  const guideDone = !!localStorage.getItem('varys_guide_done')
+
+  if (dismissed || onCapturePage || guideDone) return null
+
+  return (
+    <div className="flex items-center justify-center px-6 py-2.5 relative" style={{ backgroundColor: '#B08D57' }}>
+      <div className="flex items-center gap-2 text-sm font-medium" style={{ color: '#1C2B3A' }}>
+        <span className="text-base">↑</span>
+        Click <Link to="/" className="underline underline-offset-2 font-semibold">Capture</Link> in the menu above to log your first conversation and begin using Varys
+      </div>
+      <button
+        onClick={() => setDismissed(true)}
+        className="absolute right-6 text-lg leading-none opacity-60 hover:opacity-100 transition-opacity"
+        style={{ color: '#1C2B3A' }}
+      >
+        ×
+      </button>
+    </div>
+  )
 }
 
 function NavBar({ userEmail, onLogout }) {
@@ -92,6 +120,7 @@ function App() {
   const [chatHistory, setChatHistory] = useState([]) // multi-turn conversation history
   const [conversationTitle, setConversationTitle] = useState('')
   const [savedConversationId, setSavedConversationId] = useState(null)
+  const [newPeopleData, setNewPeopleData] = useState([])
   const [showImport, setShowImport] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
 
@@ -124,7 +153,11 @@ function App() {
   }
 
   if (!token) {
-    return <Login onLogin={handleLogin} />
+    const path = window.location.pathname
+    if (path === '/reset-password') return <ResetPassword onDone={() => window.location.href = '/'} />
+    if (path === '/forgot-password') return <ForgotPassword onBack={() => window.location.href = '/'} />
+    if (path === '/privacy') return <Privacy onBack={() => window.location.href = '/'} />
+    return <Login onLogin={handleLogin} onForgotPassword={() => window.location.href = '/forgot-password'} />
   }
 
   const captureProps = {
@@ -136,16 +169,18 @@ function App() {
     chatHistory, setChatHistory,
     conversationTitle, setConversationTitle,
     savedConversationId, setSavedConversationId,
+    newPeopleData, setNewPeopleData,
   }
 
   return (
     <Router>
       <div className="min-h-screen bg-gray-50">
         {showOnboarding && <Onboarding onComplete={() => {
+          localStorage.removeItem('varys_guide_done')
           setShowOnboarding(false)
-          authFetch('/people').then(res => res.json()).then(data => { if (Array.isArray(data)) setPeople(data) }).catch(() => {})
         }} />}
         <NavBar userEmail={userEmail} onLogout={handleLogout} />
+        <CaptureNudgeBanner />
         <main className="max-w-3xl mx-auto px-6 py-8">
           <Routes>
             <Route path="/" element={<QuickCapture {...captureProps} />} />
@@ -177,6 +212,7 @@ function App() {
             <Route path="/conversations" element={<Conversations />} />
             <Route path="/actions" element={<Actions />} />
             <Route path="/me" element={<Me />} />
+            <Route path="/privacy" element={<Privacy />} />
           </Routes>
         </main>
       </div>

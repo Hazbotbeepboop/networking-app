@@ -9,6 +9,10 @@ function Me() {
   const [selectedConversation, setSelectedConversation] = useState(null)
   const [entryText, setEntryText] = useState('')
   const [savingEntry, setSavingEntry] = useState(false)
+  const [reminder, setReminder] = useState({ time: '21:00', timezone: 'Australia/Brisbane', enabled: false })
+  const [reminderSaved, setReminderSaved] = useState(false)
+  const [calendarConnected, setCalendarConnected] = useState(false)
+  const [calendarMsg, setCalendarMsg] = useState('')
 
   useEffect(() => {
     authFetch('/me')
@@ -21,6 +25,26 @@ function Me() {
     authFetch('/conversations?folder=MY_JOURNAL')
       .then(res => res.json())
       .then(data => { if (Array.isArray(data)) setConversations(data.filter(c => c.folder === 'MY_JOURNAL')) })
+
+    authFetch('/auth/reminder')
+      .then(res => res.json())
+      .then(data => { if (data.time !== undefined) setReminder(data) })
+      .catch(() => {})
+
+    authFetch('/auth/google/calendar/status')
+      .then(res => res.json())
+      .then(data => { if (data.connected !== undefined) setCalendarConnected(data.connected) })
+      .catch(() => {})
+
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('calendar') === 'connected') {
+      setCalendarConnected(true)
+      setCalendarMsg('Google Calendar connected.')
+      window.history.replaceState({}, '', '/me')
+    } else if (params.get('calendar') === 'error') {
+      setCalendarMsg('Could not connect Google Calendar. Please try again.')
+      window.history.replaceState({}, '', '/me')
+    }
   }, [])
 
   const handleChange = (e) => {
@@ -329,6 +353,113 @@ function Me() {
           </div>
         )}
       </div>
+
+      {/* Reminders */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6 mt-4">
+        <div className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-4">Daily Reminder</div>
+        <div className="flex items-center gap-4 mb-3">
+          <input
+            type="time"
+            value={reminder.time || '21:00'}
+            onChange={e => setReminder(r => ({ ...r, time: e.target.value }))}
+            className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+          />
+          <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!reminder.enabled}
+              onChange={e => setReminder(r => ({ ...r, enabled: e.target.checked }))}
+              className="accent-[#B08D57]"
+            />
+            Enabled
+          </label>
+        </div>
+        <div className="text-xs text-gray-300 mb-4">{reminder.timezone}</div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              authFetch('/auth/reminder', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(reminder),
+              }).then(() => { setReminderSaved(true); setTimeout(() => setReminderSaved(false), 2000) })
+            }}
+            className="text-xs font-medium px-3 py-1.5 rounded-lg"
+            style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+          >
+            Save
+          </button>
+          {reminderSaved && <span className="text-xs text-gray-400">Saved</span>}
+        </div>
+      </div>
+
+      {/* Google Calendar */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6 mt-4">
+        <div className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-4">Google Calendar</div>
+        {calendarMsg && (
+          <div className={`text-xs mb-3 ${calendarConnected ? 'text-green-600' : 'text-red-400'}`}>
+            {calendarMsg}
+          </div>
+        )}
+        {calendarConnected ? (
+          <div>
+            <p className="text-sm text-gray-600 mb-4">
+              Connected. Varys will include your recent and upcoming meetings when analysing captures.
+            </p>
+            <button
+              onClick={() => {
+                if (!window.confirm('Disconnect Google Calendar?')) return
+                authFetch('/auth/google/calendar', { method: 'DELETE' })
+                  .then(() => { setCalendarConnected(false); setCalendarMsg('') })
+                  .catch(() => alert('Something went wrong.'))
+              }}
+              className="text-xs text-gray-400 hover:text-red-400 transition-colors"
+            >
+              Disconnect
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p className="text-sm text-gray-500 mb-4">
+              Connect your calendar so Varys can see who you've been meeting with and provide more relevant insights.
+            </p>
+            <button
+              onClick={() => {
+                authFetch('/auth/google/calendar/start')
+                  .then(res => res.json())
+                  .then(data => { if (data.url) window.location.href = data.url })
+                  .catch(() => alert('Something went wrong.'))
+              }}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-2"
+              style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+            >
+              Connect Google Calendar
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Delete account */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6 mt-4">
+        <div className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-3">Account</div>
+        <button
+          onClick={() => {
+            if (!window.confirm('Delete your account? This will permanently remove all your contacts, conversations, and actions. This cannot be undone.')) return
+            authFetch('/auth/account', { method: 'DELETE' })
+              .then(res => res.json())
+              .then(() => {
+                localStorage.removeItem('token')
+                localStorage.removeItem('userEmail')
+                window.location.href = '/'
+              })
+              .catch(() => alert('Something went wrong. Please try again.'))
+          }}
+          className="text-xs text-red-400 hover:text-red-600 transition-colors"
+        >
+          Delete my account and all data
+        </button>
+      </div>
+
     </div>
   )
 }

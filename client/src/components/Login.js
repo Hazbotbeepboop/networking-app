@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, onForgotPassword }) {
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -111,7 +111,28 @@ export default function Login({ onLogin }) {
             >
               {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
             </button>
+
+            {mode === 'login' && (
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={onForgotPassword}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
           </form>
+        </div>
+        <div className="text-center mt-4">
+          <button
+            type="button"
+            onClick={() => window.location.href = '/privacy'}
+            className="text-xs text-gray-300 hover:text-gray-400 transition-colors"
+          >
+            Privacy &amp; Data
+          </button>
         </div>
       </div>
     </div>

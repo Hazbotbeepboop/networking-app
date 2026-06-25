@@ -2,11 +2,22 @@ import React, { useState } from 'react'
 import { authFetch } from '../App'
 import ImportContacts from './ImportContacts'
 
-const STEPS = ['welcome', 'about', 'goals', 'how', 'contact']
+const STEPS = ['welcome', 'about', 'goals', 'how', 'contact', 'reminder', 'calendar']
 
 export default function Onboarding({ onComplete }) {
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
+
+  // Step 5 — Reminder
+  const [reminderTime, setReminderTime] = useState('21:00')
+  const [reminderTimezone] = useState(() => {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'Australia/Brisbane' }
+  })
+
+  const finish = () => {
+    onComplete()
+    window.location.href = '/network'
+  }
 
   // Step 1 — About you
   const [name, setName] = useState('')
@@ -29,6 +40,27 @@ export default function Onboarding({ onComplete }) {
   const [contactCanHelpWith, setContactCanHelpWith] = useState('')
   const [contactNotes, setContactNotes] = useState('')
   const [savedContacts, setSavedContacts] = useState([])
+
+  async function handleSetReminder() {
+    setSaving(true)
+    try {
+      await authFetch('/auth/reminder', {
+        method: 'PUT',
+        body: JSON.stringify({ time: reminderTime, timezone: reminderTimezone, enabled: true }),
+      })
+    } finally {
+      setSaving(false)
+      setStep(6)
+    }
+  }
+
+  function handleConnectCalendar() {
+    onComplete()
+    authFetch('/auth/google/calendar/start')
+      .then(res => res.json())
+      .then(data => { window.location.href = data.url || '/' })
+      .catch(() => { window.location.href = '/' })
+  }
 
   async function handleProfileNext() {
     if (!name.trim()) return
@@ -272,7 +304,7 @@ export default function Onboarding({ onComplete }) {
               </div>
               <div className="flex justify-end mt-6">
                 <button
-                  onClick={onComplete}
+                  onClick={() => setStep(5)}
                   className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   Skip for now
@@ -288,12 +320,12 @@ export default function Onboarding({ onComplete }) {
               <p className="text-xs text-gray-400 mb-4">Upload your connections CSV. You can enrich contacts after import.</p>
               <ImportContacts
                 existingPeople={[]}
-                onImportComplete={onComplete}
+                onImportComplete={() => setStep(5)}
                 compact
               />
               <div className="flex justify-start mt-4">
                 <button
-                  onClick={onComplete}
+                  onClick={() => setStep(5)}
                   className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   Skip for now
@@ -399,7 +431,7 @@ export default function Onboarding({ onComplete }) {
                   <span className="text-xs text-gray-300">Add at least one contact to continue</span>
                 ) : (
                   <button
-                    onClick={onComplete}
+                    onClick={() => setStep(5)}
                     className="px-5 py-2 text-sm font-medium rounded-lg transition-opacity"
                     style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
                   >
@@ -413,6 +445,82 @@ export default function Onboarding({ onComplete }) {
                   style={{ backgroundColor: '#B08D57', color: '#1C2B3A' }}
                 >
                   {saving ? 'Saving…' : 'Add contact'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 5 — Daily reminder */}
+          {step === 5 && (
+            <div>
+              <h2 className="text-base font-medium text-gray-900 mb-1">Set a daily journaling reminder</h2>
+              <p className="text-sm text-gray-500 leading-relaxed mb-5">
+                Varys will send you an email at this time each day prompting you to log what's happened in your network. 30 seconds before bed is enough — but regular updates will rapidly improve Varys's intelligence and usefulness.
+              </p>
+              <div className="mb-6">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Reminder time</label>
+                <input
+                  type="time"
+                  value={reminderTime}
+                  onChange={e => setReminderTime(e.target.value)}
+                  className="px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                />
+                <div className="text-xs text-gray-300 mt-1.5">{reminderTimezone}</div>
+              </div>
+              <p className="text-xs text-gray-400 mb-6">You can change or turn off reminders any time in your Profile.</p>
+              <div className="flex justify-between items-center">
+                <button
+                  onClick={() => setStep(6)}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Skip for now
+                </button>
+                <button
+                  onClick={handleSetReminder}
+                  disabled={saving}
+                  className="px-5 py-2 text-sm font-medium rounded-lg disabled:opacity-40 transition-opacity"
+                  style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                >
+                  {saving ? 'Saving…' : 'Set reminder →'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 6 — Google Calendar */}
+          {step === 6 && (
+            <div>
+              <h2 className="text-base font-medium text-gray-900 mb-1">Connect Google Calendar</h2>
+              <p className="text-sm text-gray-500 leading-relaxed mb-5">
+                Give Varys read-only access to your calendar so it can see who you've been meeting with. When you log a capture, Varys will automatically know about relevant meetings — without you having to mention them.
+              </p>
+              <div className="bg-gray-50 rounded-xl p-4 mb-6 space-y-2">
+                <div className="flex items-start gap-2 text-xs text-gray-500">
+                  <span className="mt-0.5" style={{ color: '#B08D57' }}>✓</span>
+                  <span>Read-only — Varys can never modify your calendar</span>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-gray-500">
+                  <span className="mt-0.5" style={{ color: '#B08D57' }}>✓</span>
+                  <span>Only meetings from the past 7 days and next 3 days are used</span>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-gray-500">
+                  <span className="mt-0.5" style={{ color: '#B08D57' }}>✓</span>
+                  <span>You can disconnect any time from your profile</span>
+                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <button
+                  onClick={finish}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Skip for now
+                </button>
+                <button
+                  onClick={handleConnectCalendar}
+                  className="px-5 py-2 text-sm font-medium rounded-lg"
+                  style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                >
+                  Connect Google Calendar →
                 </button>
               </div>
             </div>

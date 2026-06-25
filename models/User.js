@@ -17,6 +17,19 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  resetToken: String,
+  resetTokenExpiry: Date,
+  reminderTime: String,
+  reminderTimezone: String,
+  reminderEnabled: Boolean,
+  googleCalendar: {
+    accessToken: String,
+    refreshToken: String,
+    expiryDate: Number,
+    connected: { type: Boolean, default: false },
+  },
+  calendarEventSuppressions: [String],  // lowercased event titles
+  calendarNameSuppressions: [String],   // lowercased person names
 });
 
 // Hash password before saving

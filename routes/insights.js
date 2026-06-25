@@ -6,6 +6,9 @@ const Conversation = require('../models/Conversation')
 const Me = require('../models/Me')
 const Action = require('../models/Action')
 const Suppression = require('../models/Suppression')
+const User = require('../models/User')
+const { track } = require('../services/analytics')
+const { getRecentEvents, formatEventsForPrompt, getCalendarSuggestions, matchesExistingContact } = require('../services/googleCalendar')
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
@@ -152,6 +155,74 @@ A short numbered list of the most valuable next steps. Maximum 4. Each one sente
   }
 })
 
+// ── Calendar contact suggestions ──────────────────────────────────────────────
+router.get('/calendar-suggestions', async (req, res) => {
+  try {
+    const userId = req.user.userId
+    const contacts = await Person.find({ userId }).select('name')
+    const { suggestions, rawEvents, seenNames, eventSuppressions, nameSuppressions } = await getCalendarSuggestions(userId, contacts)
+
+    // Pass event titles to Claude to extract names from title-only events
+    if (rawEvents.length > 0) {
+      const titlesText = rawEvents
+        .filter(e => e.title)
+        .map(e => `- ${e.title} (${e.date})`)
+        .join('\n')
+
+      const msg = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 256,
+        messages: [{
+          role: 'user',
+          content: `Extract individual person names from these calendar event titles. For each name found, output one line in this exact format: Name | Event Title\nOutput NONE if there are no individual person names. Only include names of specific individual people — ignore companies, teams, job roles, and generic descriptions.\n\nEvents:\n${titlesText}`,
+        }]
+      })
+
+      const claudeText = msg.content[0].text.trim()
+      if (claudeText !== 'NONE') {
+        for (const line of claudeText.split('\n')) {
+          const parts = line.split('|')
+          if (parts.length < 2) continue
+          const name = parts[0].trim()
+          const eventTitle = parts[1].trim()
+          if (!name || seenNames.has(name.toLowerCase())) continue
+          if (matchesExistingContact(name, contacts)) continue
+          if (nameSuppressions.includes(name.toLowerCase())) continue
+          if (eventSuppressions.includes(eventTitle.toLowerCase())) continue
+          seenNames.add(name.toLowerCase())
+          const matchedEvent = rawEvents.find(e => e.title.toLowerCase() === eventTitle.toLowerCase())
+          suggestions.push({
+            name,
+            email: null,
+            eventTitle,
+            date: matchedEvent?.date || '',
+            isPast: matchedEvent?.isPast ?? false,
+          })
+        }
+      }
+    }
+
+    res.json({ suggestions })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// POST /insights/calendar-suppress
+router.post('/calendar-suppress', async (req, res) => {
+  try {
+    const userId = req.user.userId
+    const { type, value } = req.body // type: 'event' | 'name', value: string
+    if (!type || !value) return res.status(400).json({ error: 'type and value required' })
+    const field = type === 'event' ? 'calendarEventSuppressions' : 'calendarNameSuppressions'
+    await User.findByIdAndUpdate(userId, { $addToSet: { [field]: value.toLowerCase() } })
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ── Quick capture ─────────────────────────────────────────────────────────────
 router.post('/capture', async (req, res) => {
   try {
@@ -163,6 +234,9 @@ router.post('/capture', async (req, res) => {
     const completedActions = await Action.find({ userId, status: 'done' }).sort({ completedAt: -1 }).limit(20)
     const suppressions = await Suppression.find({ userId })
     const allConversations = await Conversation.find({ userId }).sort({ createdAt: -1 }).select('title messages relatedPeople folder createdAt')
+
+    const calendarEvents = await getRecentEvents(userId)
+    const calendarContext = formatEventsForPrompt(calendarEvents)
 
     const peopleMap = {}
     allPeople.forEach(p => { peopleMap[p._id.toString()] = p.name })
@@ -195,6 +269,9 @@ ${networkContext || 'No contacts yet.'}
 SAVED CONVERSATIONS:
 ${formatAllConversations(allConversations, peopleMap)}
 
+CALENDAR (recent & upcoming meetings from Google Calendar):
+${calendarContext}
+
 CAPTURE:
 "${text}"
 
@@ -213,7 +290,12 @@ Only include actions that are clearly warranted, not already completed, and not 
 
 PEOPLE_MENTIONED: [comma separated full names mentioned in the capture]
 SUGGESTED_SAVES: [comma separated names from NETWORK to save this entry to, or MY_JOURNAL for personal]
-TITLE: [a short title for this conversation, max 8 words, e.g. "Beck Phillips capacity + JMC Academy lead"]`
+TITLE: [a short title for this conversation, max 8 words, e.g. "Beck Phillips capacity + JMC Academy lead"]
+
+NEW_PERSON
+For each person mentioned in the capture who does NOT already exist in NETWORK, output one line in this exact format:
+NEW_PERSON: <full name> | <inferred role or blank> | <inferred company or blank> | <brief notes from the capture>
+Omit entirely if there are no new people. Maximum 3.`
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -235,7 +317,19 @@ TITLE: [a short title for this conversation, max 8 words, e.g. "Beck Phillips ca
       personName: match[3].trim() || null
     }))
 
-    res.json({ insights: responseText, peopleMentioned, suggestedSaves, suggestedActions, conversationTitle })
+    const existingNames = new Set(allPeople.map(p => p.name.toLowerCase()))
+    const newPersonLines = [...responseText.matchAll(/^NEW_PERSON: (.+?) \| (.*?) \| (.*?) \| (.*)$/gm)]
+    const newPeopleData = newPersonLines
+      .map(match => ({
+        name: match[1].trim(),
+        role: match[2].trim(),
+        company: match[3].trim(),
+        notes: match[4].trim(),
+      }))
+      .filter(p => p.name && !existingNames.has(p.name.toLowerCase()))
+
+    res.json({ insights: responseText, peopleMentioned, suggestedSaves, suggestedActions, conversationTitle, newPeopleData })
+    track(userId, 'capture_submitted')
 
   } catch (err) {
     console.error(err)
@@ -367,6 +461,7 @@ SUGGESTED_SAVES: [comma separated names from NETWORK, or MY_JOURNAL, or omit ent
       .trim()
 
     res.json({ response: displayText, newActions, retireActions, suggestedSaves })
+    track(userId, 'capture_chat')
 
   } catch (err) {
     console.error(err)
