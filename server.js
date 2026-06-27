@@ -1,6 +1,8 @@
 const express = require('express')
 const mongoose = require('mongoose')
 const dotenv = require('dotenv')
+const path = require('path')
+const rateLimit = require('express-rate-limit')
 
 dotenv.config()
 
@@ -16,9 +18,18 @@ mongoose.connect(process.env.MONGO_URI)
   })
   .catch((err) => console.log('Connection error:', err))
 
+// ── Rate limiting ──────────────────────────────────────────────────────────
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many attempts, please try again in 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
 // ── Public routes (no token required) ──────────────────────────────────────
 const authRoutes = require('./routes/auth')
-app.use('/auth', authRoutes)
+app.use('/auth', authLimiter, authRoutes)
 
 // ── Auth middleware — everything below requires a valid JWT ─────────────────
 const requireAuth = require('./middleware/auth')
@@ -31,9 +42,6 @@ app.use('/people', peopleRoutes)
 const entryRoutes = require('./routes/entries')
 app.use('/entries', entryRoutes)
 
-app.get('/', (req, res) => {
-  res.send('Server is running')
-})
 
 const meRoutes = require('./routes/me')
 app.use('/me', meRoutes)
@@ -52,6 +60,14 @@ app.use('/conversations', conversationRoutes)
 
 const adminRoutes = require('./routes/admin')
 app.use('/admin', adminRoutes)
+
+// ── Production: serve React build ──────────────────────────────────────────
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, 'client/build')))
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'client/build', 'index.html'))
+  })
+}
 
 const PORT = process.env.PORT || 5000
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`))

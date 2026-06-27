@@ -3,6 +3,15 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const sgMail = require('@sendgrid/mail');
+const rateLimit = require('express-rate-limit');
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  message: { error: 'Too many password reset requests. Please try again in an hour.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
 const User = require('../models/User');
 const Person = require('../models/Person');
 const Me = require('../models/Me');
@@ -141,7 +150,7 @@ router.put('/reminder', auth, async (req, res) => {
 })
 
 // POST /auth/forgot-password
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
   try {
     const { email } = req.body
     if (!email) return res.status(400).json({ error: 'Email is required' })

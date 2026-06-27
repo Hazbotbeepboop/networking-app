@@ -35,10 +35,12 @@ function CaptureNudgeBanner() {
   if (dismissed || onCapturePage || guideDone) return null
 
   return (
-    <div className="flex items-center justify-center px-6 py-2.5 relative" style={{ backgroundColor: '#B08D57' }}>
+    <div className="fixed bottom-[60px] left-0 right-0 sm:static sm:mt-0 flex items-center justify-center px-6 py-2.5 z-40" style={{ backgroundColor: '#B08D57' }}>
       <div className="flex items-center gap-2 text-sm font-medium" style={{ color: '#1C2B3A' }}>
-        <span className="text-base">↑</span>
-        Click <Link to="/" className="underline underline-offset-2 font-semibold">Capture</Link> in the menu above to log your first conversation and begin using Varys
+        <span className="text-base sm:hidden">↓</span>
+        <span className="text-base hidden sm:inline">↑</span>
+        <span className="sm:hidden">Tap <Link to="/" className="underline underline-offset-2 font-semibold">Capture</Link> below to log your first conversation and begin using Varys</span>
+        <span className="hidden sm:inline">Click <Link to="/" className="underline underline-offset-2 font-semibold">Capture</Link> in the menu above to log your first conversation and begin using Varys</span>
       </div>
       <button
         onClick={() => setDismissed(true)}
@@ -54,55 +56,110 @@ function CaptureNudgeBanner() {
 function NavBar({ userEmail, onLogout }) {
   const location = useLocation()
   const links = [
-    { to: '/', label: 'Capture' },
-    { to: '/network', label: 'Network' },
-    { to: '/conversations', label: 'Conversations' },
-    { to: '/actions', label: 'Actions' },
-    { to: '/me', label: 'Profile' },
+    {
+      to: '/', label: 'Capture',
+      icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" /></svg>,
+    },
+    {
+      to: '/network', label: 'Network',
+      icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>,
+    },
+    {
+      to: '/conversations', label: 'Convos',
+      icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" /></svg>,
+    },
+    {
+      to: '/actions', label: 'Actions',
+      icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+    },
+    {
+      to: '/me', label: 'Profile',
+      icon: <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>,
+    },
   ]
 
-  const initials = userEmail
-    ? userEmail.slice(0, 2).toUpperCase()
-    : '?'
+  const initials = userEmail ? userEmail.slice(0, 2).toUpperCase() : '?'
 
   return (
-    <nav className="flex items-center justify-between px-6 border-b border-gray-100" style={{ height: '52px' }}>
-      <div className="text-sm font-medium tracking-widest text-gray-900">
-        VAR<span className="text-[#B08D57]">Y</span>S
-      </div>
-      <div className="flex gap-7">
+    <>
+      {/* ── Desktop nav ── */}
+      <nav className="hidden sm:flex items-center justify-between px-6 border-b border-gray-100" style={{ height: '52px' }}>
+        <div className="text-sm font-medium tracking-widest text-gray-900">
+          VAR<span className="text-[#B08D57]">Y</span>S
+        </div>
+        <div className="flex gap-7">
+          {links.map(link => {
+            const active = location.pathname === link.to
+            return (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={`text-sm pb-0.5 transition-colors ${
+                  active
+                    ? 'text-gray-900 font-medium border-b-2 border-[#B08D57]'
+                    : 'text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                {link.label === 'Convos' ? 'Conversations' : link.label}
+              </Link>
+            )
+          })}
+        </div>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium text-[#B08D57]"
+            style={{ backgroundColor: '#1C2B3A' }}
+          >
+            {initials}
+          </div>
+          <button
+            onClick={onLogout}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      </nav>
+
+      {/* ── Mobile top bar ── */}
+      <nav className="flex sm:hidden fixed top-0 left-0 right-0 z-50 items-center justify-between px-4 border-b border-gray-100 bg-white" style={{ height: '52px' }}>
+        <div className="text-sm font-medium tracking-widest text-gray-900">
+          VAR<span className="text-[#B08D57]">Y</span>S
+        </div>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium text-[#B08D57]"
+            style={{ backgroundColor: '#1C2B3A' }}
+          >
+            {initials}
+          </div>
+          <button
+            onClick={onLogout}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      </nav>
+
+      {/* ── Mobile bottom tab bar ── */}
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 flex">
         {links.map(link => {
           const active = location.pathname === link.to
           return (
             <Link
               key={link.to}
               to={link.to}
-              className={`text-sm pb-0.5 transition-colors ${
-                active
-                  ? 'text-gray-900 font-medium border-b-2 border-[#B08D57]'
-                  : 'text-gray-400 hover:text-gray-600'
-              }`}
+              className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors"
+              style={{ color: active ? '#B08D57' : '#9CA3AF' }}
             >
-              {link.label}
+              <div className="w-5 h-5">{link.icon}</div>
+              <span className="text-[10px] font-medium">{link.label}</span>
             </Link>
           )
         })}
       </div>
-      <div className="flex items-center gap-3">
-        <div
-          className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium text-[#B08D57]"
-          style={{ backgroundColor: '#1C2B3A' }}
-        >
-          {initials}
-        </div>
-        <button
-          onClick={onLogout}
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          Sign out
-        </button>
-      </div>
-    </nav>
+    </>
   )
 }
 
@@ -181,7 +238,7 @@ function App() {
         }} />}
         <NavBar userEmail={userEmail} onLogout={handleLogout} />
         <CaptureNudgeBanner />
-        <main className="max-w-3xl mx-auto px-6 py-8">
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-[68px] sm:pt-8 pb-24 sm:pb-8">
           <Routes>
             <Route path="/" element={<QuickCapture {...captureProps} />} />
             <Route path="/network" element={

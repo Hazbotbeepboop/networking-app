@@ -45,6 +45,7 @@ const TYPE_LABELS = {
   follow_up: 'Follow up',
   introduction: 'Introduction',
   add_contact: 'Add contact',
+  add_person: 'New person',
   send_email: 'Send email',
   other: 'Action'
 }
@@ -77,6 +78,9 @@ function QuickCapture({
   const [calSuggForms, setCalSuggForms] = useState({})
   const [calSuggActions, setCalSuggActions] = useState({})
   const [calSuggOpen, setCalSuggOpen] = useState(false)
+  const [calSuggExpandedIndex, setCalSuggExpandedIndex] = useState(null)
+  const [addPersonExpandedIndex, setAddPersonExpandedIndex] = useState(null)
+  const [addPersonForms, setAddPersonForms] = useState({})
   const savedIdRef = useRef(savedConversationId)
   const chatBottomRef = useRef(null)
 
@@ -134,6 +138,8 @@ function QuickCapture({
     setNewPeopleData([])
     setNewPersonForms({})
     setAddedPeople({})
+    setAddPersonExpandedIndex(null)
+    setAddPersonForms({})
 
     setSavedConversationId(null)
     savedIdRef.current = null
@@ -153,7 +159,13 @@ function QuickCapture({
         const initialSaves = {}
         data.suggestedSaves.forEach(name => { initialSaves[name] = true })
         setCaptureSaves(initialSaves)
-        setCapturePendingActions(data.suggestedActions || [])
+        const addPersonActions = (data.newPeopleData || []).map(p => ({
+          type: 'add_person',
+          description: `Add ${p.name} to your network`,
+          personName: p.name,
+          _personData: { name: p.name, role: p.role || '', company: p.company || '', notes: p.notes || '' }
+        }))
+        setCapturePendingActions([...(data.suggestedActions || []), ...addPersonActions])
         setConversationTitle(data.conversationTitle || captureText.slice(0, 60))
 
         // Seed chat history with the initial exchange
@@ -352,6 +364,8 @@ function QuickCapture({
     setNewPeopleData([])
     setNewPersonForms({})
     setAddedPeople({})
+    setAddPersonExpandedIndex(null)
+    setAddPersonForms({})
   }
 
   return (
@@ -472,98 +486,195 @@ function QuickCapture({
             <span className="text-gray-300 text-xs">{calSuggOpen ? '▲' : '▼'}</span>
           </button>
           {calSuggOpen && (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {calSuggestions.map((person, i) => {
                 if (calSuggActions[i]) return null
-                const form = calSuggForms[i] ?? { name: person.name, role: '', company: '', notes: '' }
+
+                const defaultForm = {
+                  name: person.name,
+                  role: '',
+                  company: '',
+                  whereMet: `${person.eventTitle} (${person.date})`,
+                  goals: '',
+                  canHelpWith: '',
+                  notes: '',
+                }
+                const form = calSuggForms[i] ?? defaultForm
                 const setField = (field, val) =>
-                  setCalSuggForms(prev => ({ ...prev, [i]: { ...(prev[i] ?? { name: person.name, role: '', company: '', notes: '' }), [field]: val } }))
+                  setCalSuggForms(prev => ({ ...prev, [i]: { ...(prev[i] ?? defaultForm), [field]: val } }))
+
                 const suppress = (type) => {
-                  const value = type === 'event' ? person.eventTitle : (form.name || person.name)
+                  const value = type === 'event' ? person.eventTitle : person.name
                   authFetch('/insights/calendar-suppress', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ type, value })
                   }).catch(err => console.error('suppress failed:', err))
                   setCalSuggActions(prev => ({ ...prev, [i]: 'suppressed' }))
+                  if (calSuggExpandedIndex === i) setCalSuggExpandedIndex(null)
                 }
+
+                const isExpanded = calSuggExpandedIndex === i
+
                 return (
-                  <div key={i} className="bg-white border border-gray-200 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <input
-                        value={form.name}
-                        onChange={e => setField('name', e.target.value)}
-                        className="flex-1 text-sm font-medium text-gray-800 border-b border-transparent hover:border-gray-200 focus:border-[#B08D57] outline-none transition-colors bg-transparent mr-3"
-                      />
-                      <button
-                        onClick={() => setCalSuggActions(prev => ({ ...prev, [i]: 'dismissed' }))}
-                        className="text-gray-300 hover:text-gray-400 transition-colors text-lg leading-none"
-                      >×</button>
-                    </div>
-                    <div className="text-xs text-gray-400 mb-3">
-                      {person.isPast ? 'Recent meeting' : 'Upcoming meeting'}: {person.eventTitle} — {person.date}
-                    </div>
-                    <div className="space-y-2 mb-3">
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          value={form.role}
-                          onChange={e => setField('role', e.target.value)}
-                          placeholder="Role"
-                          className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
-                        />
-                        <input
-                          value={form.company}
-                          onChange={e => setField('company', e.target.value)}
-                          placeholder="Company"
-                          className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
-                        />
+                  <div key={i} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    {/* Compact row — always visible */}
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-800">{person.name}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          {person.isPast ? 'Recent' : 'Upcoming'}: {person.eventTitle} — {person.date}
+                        </div>
                       </div>
-                      <textarea
-                        value={form.notes}
-                        onChange={e => setField('notes', e.target.value)}
-                        placeholder="Notes"
-                        rows={2}
-                        className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none"
-                      />
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                        <button
+                          onClick={() => {
+                            if (!calSuggForms[i]) setCalSuggForms(prev => ({ ...prev, [i]: defaultForm }))
+                            setCalSuggExpandedIndex(isExpanded ? null : i)
+                          }}
+                          disabled={calSuggExpandedIndex !== null && !isExpanded}
+                          className="px-3 py-1.5 text-xs font-medium rounded-lg disabled:opacity-30 transition-opacity"
+                          style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                        >
+                          Add to network
+                        </button>
+                        <button
+                          onClick={() => suppress('event')}
+                          className="px-2 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                          title="Stop suggesting this event"
+                        >
+                          Stop suggesting event
+                        </button>
+                        <button
+                          onClick={() => suppress('name')}
+                          className="px-2 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                          title="Stop suggesting this person"
+                        >
+                          Stop suggesting person
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCalSuggActions(prev => ({ ...prev, [i]: 'dismissed' }))
+                            if (calSuggExpandedIndex === i) setCalSuggExpandedIndex(null)
+                          }}
+                          className="p-1 text-gray-300 hover:text-gray-500 transition-colors"
+                          title="Dismiss for now"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <button
-                        onClick={() => {
-                          authFetch('/people', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              name: form.name || person.name,
-                              role: form.role || '',
-                              company: form.company || '',
-                              notes: form.notes || '',
-                            })
-                          })
-                            .then(res => res.json())
-                            .then(saved => {
-                              setPeople(prev => [...prev, saved])
-                              setCalSuggActions(prev => ({ ...prev, [i]: 'added' }))
-                            })
-                            .catch(err => console.error('Failed to add person:', err))
-                        }}
-                        className="px-3 py-1.5 text-xs font-medium rounded-lg"
-                        style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
-                      >
-                        Add to network
-                      </button>
-                      <button
-                        onClick={() => suppress('event')}
-                        className="px-3 py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        Stop suggesting this event
-                      </button>
-                      <button
-                        onClick={() => suppress('name')}
-                        className="px-3 py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        Stop suggesting this person
-                      </button>
-                    </div>
+
+                    {/* Expanded form — in place */}
+                    {isExpanded && (
+                      <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
+                              <input
+                                autoFocus
+                                value={form.name}
+                                onChange={e => setField('name', e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Role</label>
+                              <input
+                                value={form.role}
+                                onChange={e => setField('role', e.target.value)}
+                                placeholder="e.g. Founder, Investor"
+                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Company</label>
+                              <input
+                                value={form.company}
+                                onChange={e => setField('company', e.target.value)}
+                                placeholder="e.g. Acme Corp"
+                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-500 mb-1">Where met</label>
+                              <input
+                                value={form.whereMet}
+                                onChange={e => setField('whereMet', e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Their goals</label>
+                            <input
+                              value={form.goals}
+                              onChange={e => setField('goals', e.target.value)}
+                              placeholder="What are they working towards?"
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Can help with</label>
+                            <input
+                              value={form.canHelpWith}
+                              onChange={e => setField('canHelpWith', e.target.value)}
+                              placeholder="What can they help you with?"
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Notes</label>
+                            <textarea
+                              value={form.notes}
+                              onChange={e => setField('notes', e.target.value)}
+                              placeholder="Anything else worth remembering"
+                              rows={2}
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <button
+                            onClick={() => {
+                              authFetch('/people', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  name: form.name || person.name,
+                                  role: form.role || '',
+                                  company: form.company || '',
+                                  whereMet: form.whereMet || '',
+                                  goals: form.goals || '',
+                                  canHelpWith: form.canHelpWith || '',
+                                  notes: form.notes || '',
+                                })
+                              })
+                                .then(res => res.json())
+                                .then(saved => {
+                                  setPeople(prev => [...prev, saved])
+                                  setCalSuggActions(prev => ({ ...prev, [i]: 'added' }))
+                                  setCalSuggExpandedIndex(null)
+                                })
+                                .catch(err => console.error('Failed to add person:', err))
+                            }}
+                            className="px-4 py-2 text-xs font-medium rounded-lg"
+                            style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                          >
+                            Add
+                          </button>
+                          <button
+                            onClick={() => setCalSuggExpandedIndex(null)}
+                            className="px-4 py-2 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -685,94 +796,273 @@ function QuickCapture({
             <div>
               <div className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-3">Suggested actions</div>
               <div className="space-y-2">
-                {capturePendingActions.map((action, i) => (
-                  <div key={i} className="bg-white border border-gray-200 rounded-lg">
-                    <div className="flex items-start gap-3 p-3">
-                      <span className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 mt-0.5" style={{ backgroundColor: '#F5EDD8', color: '#B08D57' }}>
-                        {TYPE_LABELS[action.type] || action.type}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-gray-800">{action.description}</div>
-                        {action.personName && <div className="text-xs text-gray-400 mt-0.5">{action.personName}</div>}
-                      </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                        <button onClick={() => handleAcceptClick(i)}
-                          className="px-3 py-1 text-xs font-medium rounded-md"
-                          style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}>
-                          Accept
-                        </button>
-                        <button onClick={() => handleDismiss(i)}
-                          className="px-3 py-1 text-xs text-gray-400 border border-gray-200 rounded-md hover:bg-gray-50">
-                          Dismiss
-                        </button>
-                        <button
-                          onClick={() => { setSuppressingIndex(suppressingIndex === i ? null : i); setSuppressionNote('') }}
-                          className="px-3 py-1 text-xs text-gray-400 border border-gray-200 rounded-md hover:bg-gray-50">
-                          Stop suggesting
-                        </button>
-                      </div>
-                    </div>
-                    {acceptingIndex === i && (
-                      <div className="px-3 pb-3 pt-2 border-t border-gray-100">
-                        <div className="text-xs text-gray-400 mb-2">Set a due date <span className="text-gray-300">(optional)</span></div>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {[3, 7, 14].map(days => {
-                            const d = new Date(); d.setDate(d.getDate() + days)
-                            const val = d.toISOString().split('T')[0]
-                            return (
-                              <button key={days} onClick={() => setAcceptDueDate(val)}
-                                className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${acceptDueDate === val ? 'border-[#B08D57] text-[#B08D57]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
-                                +{days}d
+                {capturePendingActions.map((action, i) => {
+                  if (action.type === 'add_person') {
+                    const defaultForm = { ...action._personData, whereMet: '', goals: '', canHelpWith: '' }
+                    const form = addPersonForms[i] ?? defaultForm
+                    const setField = (field, val) =>
+                      setAddPersonForms(prev => ({ ...prev, [i]: { ...(prev[i] ?? defaultForm), [field]: val } }))
+                    const isExpanded = addPersonExpandedIndex === i
+                    const handleLater = () => {
+                      authFetch('/insights/actions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ actions: [{ type: 'add_contact', description: action.description, dueDate: null }], sourceCapture: captureText })
+                      })
+                        .then(res => res.json())
+                        .then(saved => {
+                          setCaptureAcceptedActions(prev => [...prev, { type: 'add_contact', description: action.description, _id: saved[0]._id }])
+                          setCapturePendingActions(prev => prev.filter((_, idx) => idx !== i))
+                          if (addPersonExpandedIndex === i) setAddPersonExpandedIndex(null)
+                        })
+                        .catch(err => console.error('Failed to save action:', err))
+                    }
+                    const handleAddSubmit = () => {
+                      authFetch('/people', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          name: form.name || action.personName,
+                          role: form.role || '',
+                          company: form.company || '',
+                          whereMet: form.whereMet || '',
+                          goals: form.goals || '',
+                          canHelpWith: form.canHelpWith || '',
+                          notes: form.notes || '',
+                        })
+                      })
+                        .then(res => res.json())
+                        .then(saved => {
+                          setPeople(prev => [...prev, saved])
+                          const newSaves = { ...captureSaves, [form.name || action.personName]: true }
+                          setCaptureSaves(newSaves)
+                          handleUpdateTags(newSaves, conversationTitle)
+                          setCaptureAcceptedActions(prev => [...prev, { type: 'add_person', description: `Added ${form.name || action.personName}`, _id: saved._id }])
+                          setCapturePendingActions(prev => prev.filter((_, idx) => idx !== i))
+                          setAddPersonExpandedIndex(null)
+                        })
+                        .catch(err => console.error('Failed to add person:', err))
+                    }
+                    return (
+                      <div key={i} className="bg-white border border-gray-200 rounded-lg">
+                        <div className="p-3 space-y-2">
+                          <div className="flex items-start gap-3">
+                            <span className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 mt-0.5" style={{ backgroundColor: '#F5EDD8', color: '#B08D57' }}>
+                              New person
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm text-gray-800">{action.description}</div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                if (!addPersonForms[i]) setAddPersonForms(prev => ({ ...prev, [i]: defaultForm }))
+                                setAddPersonExpandedIndex(isExpanded ? null : i)
+                              }}
+                              disabled={addPersonExpandedIndex !== null && !isExpanded}
+                              className="px-3 py-1 text-xs font-medium rounded-md disabled:opacity-30 transition-opacity"
+                              style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                            >
+                              Add
+                            </button>
+                            <button
+                              onClick={handleLater}
+                              className="px-3 py-1 text-xs text-gray-400 border border-gray-200 rounded-md hover:bg-gray-50"
+                            >
+                              Later
+                            </button>
+                            <button
+                              onClick={() => { handleDismiss(i); if (addPersonExpandedIndex === i) setAddPersonExpandedIndex(null) }}
+                              className="px-3 py-1 text-xs text-gray-400 border border-gray-200 rounded-md hover:bg-gray-50"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </div>
+                        {isExpanded && (
+                          <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
+                                  <input
+                                    autoFocus
+                                    value={form.name}
+                                    onChange={e => setField('name', e.target.value)}
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Role</label>
+                                  <input
+                                    value={form.role}
+                                    onChange={e => setField('role', e.target.value)}
+                                    placeholder="e.g. Founder, Investor"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Company</label>
+                                  <input
+                                    value={form.company}
+                                    onChange={e => setField('company', e.target.value)}
+                                    placeholder="e.g. Acme Corp"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-500 mb-1">Where met</label>
+                                  <input
+                                    value={form.whereMet}
+                                    onChange={e => setField('whereMet', e.target.value)}
+                                    placeholder="e.g. Coffee with Tom"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Their goals</label>
+                                <input
+                                  value={form.goals}
+                                  onChange={e => setField('goals', e.target.value)}
+                                  placeholder="What are they working towards?"
+                                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Can help with</label>
+                                <input
+                                  value={form.canHelpWith}
+                                  onChange={e => setField('canHelpWith', e.target.value)}
+                                  placeholder="What can they help you with?"
+                                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">Notes</label>
+                                <textarea
+                                  value={form.notes}
+                                  onChange={e => setField('notes', e.target.value)}
+                                  placeholder="Anything else worth remembering"
+                                  rows={2}
+                                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex gap-2 mt-4">
+                              <button
+                                onClick={handleAddSubmit}
+                                className="px-4 py-2 text-xs font-medium rounded-lg"
+                                style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                              >
+                                Add
                               </button>
-                            )
-                          })}
-                          <input type="date" value={acceptDueDate}
-                            onChange={e => setAcceptDueDate(e.target.value)}
-                            className="px-2 py-1 text-xs border border-gray-200 rounded-md outline-none focus:border-[#B08D57] text-gray-500" />
+                              <button
+                                onClick={() => setAddPersonExpandedIndex(null)}
+                                className="px-4 py-2 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+                  return (
+                    <div key={i} className="bg-white border border-gray-200 rounded-lg">
+                      <div className="p-3 space-y-2">
+                        <div className="flex items-start gap-3">
+                          <span className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 mt-0.5" style={{ backgroundColor: '#F5EDD8', color: '#B08D57' }}>
+                            {TYPE_LABELS[action.type] || action.type}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm text-gray-800">{action.description}</div>
+                            {action.personName && <div className="text-xs text-gray-400 mt-0.5">{action.personName}</div>}
+                          </div>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => handleAccept(action, i, acceptDueDate)}
-                            className="px-3 py-1.5 text-xs font-medium rounded-lg"
+                          <button onClick={() => handleAcceptClick(i)}
+                            className="px-3 py-1 text-xs font-medium rounded-md"
                             style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}>
-                            Save
+                            Accept
                           </button>
-                          <button onClick={() => handleAccept(action, i, null)}
-                            className="px-3 py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50">
-                            No date
+                          <button onClick={() => handleDismiss(i)}
+                            className="px-3 py-1 text-xs text-gray-400 border border-gray-200 rounded-md hover:bg-gray-50">
+                            Dismiss
                           </button>
-                          <button onClick={() => { setAcceptingIndex(null); setAcceptDueDate('') }}
-                            className="px-3 py-1.5 text-xs text-gray-300 hover:text-gray-500">
-                            Cancel
+                          <button
+                            onClick={() => { setSuppressingIndex(suppressingIndex === i ? null : i); setSuppressionNote('') }}
+                            className="px-3 py-1 text-xs text-gray-400 border border-gray-200 rounded-md hover:bg-gray-50">
+                            Stop suggesting
                           </button>
                         </div>
                       </div>
-                    )}
-                    {suppressingIndex === i && (
-                      <div className="px-3 pb-3 pt-1 border-t border-gray-100">
-                        <div className="text-xs text-gray-400 mb-2">Why? <span className="text-gray-300">(optional — helps Varys be more precise)</span></div>
-                        <textarea
-                          value={suppressionNote}
-                          onChange={e => setSuppressionNote(e.target.value)}
-                          placeholder="e.g. Already tried this, dead end / Not the right time"
-                          rows={2}
-                          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none placeholder-gray-300"
-                          autoFocus
-                        />
-                        <div className="flex gap-2 mt-2">
-                          <button onClick={() => handleStopSuggesting(action, i)}
-                            className="px-3 py-1.5 text-xs font-medium rounded-lg"
-                            style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}>
-                            Confirm
-                          </button>
-                          <button onClick={() => { setSuppressingIndex(null); setSuppressionNote('') }}
-                            className="px-3 py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50">
-                            Cancel
-                          </button>
+                      {acceptingIndex === i && (
+                        <div className="px-3 pb-3 pt-2 border-t border-gray-100">
+                          <div className="text-xs text-gray-400 mb-2">Set a due date <span className="text-gray-300">(optional)</span></div>
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {[3, 7, 14].map(days => {
+                              const d = new Date(); d.setDate(d.getDate() + days)
+                              const val = d.toISOString().split('T')[0]
+                              return (
+                                <button key={days} onClick={() => setAcceptDueDate(val)}
+                                  className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${acceptDueDate === val ? 'border-[#B08D57] text-[#B08D57]' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}>
+                                  +{days}d
+                                </button>
+                              )
+                            })}
+                            <input type="date" value={acceptDueDate}
+                              onChange={e => setAcceptDueDate(e.target.value)}
+                              className="px-2 py-1 text-xs border border-gray-200 rounded-md outline-none focus:border-[#B08D57] text-gray-500" />
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleAccept(action, i, acceptDueDate)}
+                              className="px-3 py-1.5 text-xs font-medium rounded-lg"
+                              style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}>
+                              Save
+                            </button>
+                            <button onClick={() => handleAccept(action, i, null)}
+                              className="px-3 py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50">
+                              No date
+                            </button>
+                            <button onClick={() => { setAcceptingIndex(null); setAcceptDueDate('') }}
+                              className="px-3 py-1.5 text-xs text-gray-300 hover:text-gray-500">
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      )}
+                      {suppressingIndex === i && (
+                        <div className="px-3 pb-3 pt-1 border-t border-gray-100">
+                          <div className="text-xs text-gray-400 mb-2">Why? <span className="text-gray-300">(optional — helps Varys be more precise)</span></div>
+                          <textarea
+                            value={suppressionNote}
+                            onChange={e => setSuppressionNote(e.target.value)}
+                            placeholder="e.g. Already tried this, dead end / Not the right time"
+                            rows={2}
+                            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none placeholder-gray-300"
+                            autoFocus
+                          />
+                          <div className="flex gap-2 mt-2">
+                            <button onClick={() => handleStopSuggesting(action, i)}
+                              className="px-3 py-1.5 text-xs font-medium rounded-lg"
+                              style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}>
+                              Confirm
+                            </button>
+                            <button onClick={() => { setSuppressingIndex(null); setSuppressionNote('') }}
+                              className="px-3 py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50">
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -801,90 +1091,6 @@ function QuickCapture({
             </div>
           )}
 
-          <div className="border-t border-gray-100" />
-
-          {/* New people mentioned — offer to add to network */}
-          {newPeopleData.length > 0 && newPeopleData.some((_, i) => !addedPeople[i]) && (
-            <div>
-              <div className="text-xs font-medium tracking-widest text-gray-400 uppercase mb-3">New people mentioned</div>
-              <div className="space-y-3">
-                {newPeopleData.map((person, i) => {
-                  if (addedPeople[i]) return null
-                  const form = newPersonForms[i] ?? person
-                  const setField = (field, val) =>
-                    setNewPersonForms(prev => ({ ...prev, [i]: { ...(prev[i] ?? person), [field]: val } }))
-                  return (
-                    <div key={i} className="bg-white border border-gray-200 rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <input
-                          value={form.name ?? person.name}
-                          onChange={e => setField('name', e.target.value)}
-                          className="flex-1 text-sm font-medium text-gray-800 border-b border-transparent hover:border-gray-200 focus:border-[#B08D57] outline-none transition-colors bg-transparent mr-3"
-                        />
-                        <button
-                          onClick={() => setAddedPeople(prev => ({ ...prev, [i]: 'dismissed' }))}
-                          className="text-gray-300 hover:text-gray-400 transition-colors text-lg leading-none"
-                        >×</button>
-                      </div>
-                      <div className="space-y-2 mb-3">
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            value={form.role || ''}
-                            onChange={e => setField('role', e.target.value)}
-                            placeholder="Role"
-                            className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
-                          />
-                          <input
-                            value={form.company || ''}
-                            onChange={e => setField('company', e.target.value)}
-                            placeholder="Company"
-                            className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
-                          />
-                        </div>
-                        <textarea
-                          value={form.notes || ''}
-                          onChange={e => setField('notes', e.target.value)}
-                          placeholder="Notes"
-                          rows={2}
-                          className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none"
-                        />
-                      </div>
-                      <button
-                        onClick={() => {
-                          authFetch('/people', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              name: form.name || person.name,
-                              role: form.role || '',
-                              company: form.company || '',
-                              notes: form.notes || '',
-                            })
-                          })
-                            .then(res => res.json())
-                            .then(saved => {
-                              setPeople(prev => [...prev, saved])
-                              setAddedPeople(prev => ({ ...prev, [i]: 'added' }))
-                              // Auto-tag this conversation to the new contact
-                              const newSaves = { ...captureSaves, [form.name || person.name]: true }
-                              setCaptureSaves(newSaves)
-                              handleUpdateTags(newSaves, conversationTitle)
-                            })
-                            .catch(err => console.error('Failed to add person:', err))
-                        }}
-                        className="px-3 py-1.5 text-xs font-medium rounded-lg"
-                        style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
-                      >
-                        Add to network
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Divider */}
           <div className="border-t border-gray-100" />
 
           {/* Saved conversation */}

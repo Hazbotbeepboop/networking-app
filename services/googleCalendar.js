@@ -183,8 +183,8 @@ async function getCalendarSuggestions(userId, contacts) {
       const date = new Date(start)
       const formattedDate = date.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
       const isPast = date < new Date()
-      rawEvents.push({ title: event.summary || '', date: formattedDate, isPast })
       if (eventSuppressions.includes((event.summary || '').toLowerCase())) continue
+      rawEvents.push({ title: event.summary || '', date: formattedDate, isPast })
       for (const attendee of (event.attendees || []).filter(a => !a.self)) {
         const name = deriveName(attendee)
         if (!name || seenNames.has(name.toLowerCase())) continue

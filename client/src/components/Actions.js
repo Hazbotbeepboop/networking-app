@@ -117,7 +117,26 @@ function Actions() {
   }
 
   if (loading) return (
-    <div className="flex items-center justify-center py-20 text-sm text-gray-400">Loading…</div>
+    <div>
+      <div className="mb-6">
+        <h2 className="text-lg font-medium text-gray-900">Actions</h2>
+        <div className="h-3 bg-gray-100 rounded w-32 mt-2 animate-pulse" />
+      </div>
+      <div className="space-y-2">
+        {[1, 2, 3].map(i => (
+          <div key={i} className="bg-white border border-gray-200 rounded-xl p-4 animate-pulse">
+            <div className="flex items-start gap-4">
+              <div className="h-5 w-20 bg-gray-200 rounded-full flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="h-3.5 bg-gray-200 rounded w-3/4 mb-2" />
+                <div className="h-3 bg-gray-100 rounded w-1/4" />
+              </div>
+              <div className="h-7 w-16 bg-gray-200 rounded-lg flex-shrink-0" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 
   return (
@@ -143,7 +162,7 @@ function Actions() {
             const borderColor = dueStatus === 'overdue' ? 'border-red-200' : dueStatus === 'soon' ? 'border-amber-200' : 'border-gray-200'
             return (
             <div key={action._id} className={`bg-white border ${borderColor} rounded-xl p-4`}>
-              <div className="flex items-start gap-4">
+              <div className="flex items-start gap-3">
                 <span
                   className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 mt-0.5"
                   style={{ backgroundColor: '#F5EDD8', color: '#B08D57' }}
@@ -229,36 +248,34 @@ function Actions() {
                     </button>
                   )}
                 </div>
-
-                <div className="flex gap-2 flex-shrink-0">
-                  {completing === action._id ? null : (
-                    <>
-                      {EMAIL_DRAFTABLE.includes(action.type) && (
-                        <button
-                          onClick={() => handleDraftEmail(action)}
-                          className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-50"
-                          style={draftingEmail === action._id ? { backgroundColor: '#F5EDD8', color: '#B08D57', borderColor: '#B08D57' } : { color: '#B08D57' }}
-                        >
-                          {draftLoading === action._id ? '…' : 'Draft email'}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => { setCompleting(action._id); setOutcomeText('') }}
-                        className="px-3 py-1.5 text-xs font-medium rounded-lg"
-                        style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
-                      >
-                        Done
-                      </button>
-                      <button
-                        onClick={() => handleDismiss(action._id)}
-                        className="px-3 py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50"
-                      >
-                        Not relevant
-                      </button>
-                    </>
-                  )}
-                </div>
               </div>
+
+              {completing !== action._id && (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {EMAIL_DRAFTABLE.includes(action.type) && (
+                    <button
+                      onClick={() => handleDraftEmail(action)}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 hover:bg-gray-50"
+                      style={draftingEmail === action._id ? { backgroundColor: '#F5EDD8', color: '#B08D57', borderColor: '#B08D57' } : { color: '#B08D57' }}
+                    >
+                      {draftLoading === action._id ? '…' : 'Draft email'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setCompleting(action._id); setOutcomeText('') }}
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg"
+                    style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
+                  >
+                    Done
+                  </button>
+                  <button
+                    onClick={() => handleDismiss(action._id)}
+                    className="px-3 py-1.5 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50"
+                  >
+                    Not relevant
+                  </button>
+                </div>
+              )}
 
               {/* Email draft panel */}
               {draftingEmail === action._id && (

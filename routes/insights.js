@@ -166,7 +166,7 @@ router.get('/calendar-suggestions', async (req, res) => {
     if (rawEvents.length > 0) {
       const titlesText = rawEvents
         .filter(e => e.title)
-        .map(e => `- ${e.title} (${e.date})`)
+        .map(e => `- ${e.title}`)
         .join('\n')
 
       const msg = await anthropic.messages.create({
@@ -194,7 +194,7 @@ router.get('/calendar-suggestions', async (req, res) => {
           suggestions.push({
             name,
             email: null,
-            eventTitle,
+            eventTitle: matchedEvent?.title || eventTitle,
             date: matchedEvent?.date || '',
             isPast: matchedEvent?.isPast ?? false,
           })
@@ -431,7 +431,11 @@ RETIRE_ACTION: <exact description string>
 Only emit RETIRE_ACTION lines for actions that are genuinely superseded. If no actions need retiring, omit entirely.
 
 If new people from the network are mentioned in this message that should be linked to the conversation, include:
-SUGGESTED_SAVES: [comma separated names from NETWORK, or MY_JOURNAL, or omit entirely if no new ones]`
+SUGGESTED_SAVES: [comma separated names from NETWORK, or MY_JOURNAL, or omit entirely if no new ones]
+
+If people are mentioned who are NOT already in NETWORK above and should be added as contacts, include at the end:
+NEW_PERSON: <full name> | <inferred role or blank> | <inferred company or blank> | <brief notes from the conversation>
+Omit entirely if no new people. Maximum 3.`
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -441,12 +445,24 @@ SUGGESTED_SAVES: [comma separated names from NETWORK, or MY_JOURNAL, or omit ent
     })
 
     const responseText = message.content[0].text
+    const existingNames = new Set(allPeople.map(p => p.name.toLowerCase()))
+
     const actionLines = [...responseText.matchAll(/^ACTION: (.+) \| (.+) \| (.*)$/gm)]
-    const newActions = actionLines.map(match => ({
-      type: match[1].trim(),
-      description: match[2].trim(),
-      personName: match[3].trim() || null
-    }))
+    const newActions = actionLines.map(match => {
+      const type = match[1].trim()
+      const description = match[2].trim()
+      const personName = match[3].trim() || null
+      // Convert add_contact actions for people not yet in the network into add_person
+      if (type === 'add_contact' && personName && !existingNames.has(personName.toLowerCase())) {
+        return {
+          type: 'add_person',
+          description: `Add ${personName} to your network`,
+          personName,
+          _personData: { name: personName, role: '', company: '', notes: '' }
+        }
+      }
+      return { type, description, personName }
+    })
 
     const retireLines = [...responseText.matchAll(/^RETIRE_ACTION: (.+)$/gm)]
     const retireActions = retireLines.map(match => match[1].trim())
@@ -454,13 +470,25 @@ SUGGESTED_SAVES: [comma separated names from NETWORK, or MY_JOURNAL, or omit ent
     const savesMatch = responseText.match(/SUGGESTED_SAVES: \[(.+)\]/)
     const suggestedSaves = savesMatch ? savesMatch[1].split(',').map(s => s.trim()).filter(Boolean) : []
 
+    const newPersonLines = [...responseText.matchAll(/^NEW_PERSON: (.+?) \| (.*?) \| (.*?) \| (.*)$/gm)]
+    const addPersonActions = newPersonLines
+      .map(m => ({ name: m[1].trim(), role: m[2].trim(), company: m[3].trim(), notes: m[4].trim() }))
+      .filter(p => p.name && !existingNames.has(p.name.toLowerCase()))
+      .map(p => ({
+        type: 'add_person',
+        description: `Add ${p.name} to your network`,
+        personName: p.name,
+        _personData: { name: p.name, role: p.role, company: p.company, notes: p.notes }
+      }))
+
     const displayText = responseText
       .replace(/^ACTION:.*$/gm, '')
       .replace(/^RETIRE_ACTION:.*$/gm, '')
       .replace(/^SUGGESTED_SAVES:.*$/gm, '')
+      .replace(/^NEW_PERSON:.*$/gm, '')
       .trim()
 
-    res.json({ response: displayText, newActions, retireActions, suggestedSaves })
+    res.json({ response: displayText, newActions: [...newActions, ...addPersonActions], retireActions, suggestedSaves })
     track(userId, 'capture_chat')
 
   } catch (err) {
