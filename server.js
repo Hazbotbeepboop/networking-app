@@ -32,12 +32,9 @@ const authLimiter = rateLimit({
 const authRoutes = require('./routes/auth')
 app.use('/auth', authLimiter, authRoutes)
 
-// ── Production: serve React build ──────────────────────────────────────────
+// ── Production: serve static files (JS/CSS/images only — no catch-all yet) ─
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'client/build')))
-  app.get('/{*path}', (req, res) => {
-    res.sendFile(path.join(__dirname, 'client/build', 'index.html'))
-  })
 }
 
 // ── Auth middleware — everything below requires a valid JWT ─────────────────
@@ -69,6 +66,13 @@ app.use('/conversations', conversationRoutes)
 
 const adminRoutes = require('./routes/admin')
 app.use('/admin', adminRoutes)
+
+// ── Production: catch-all must be last so API routes take priority ──────────
+if (process.env.NODE_ENV === 'production') {
+  app.get('/{*path}', (req, res) => {
+    res.sendFile(path.join(__dirname, 'client/build', 'index.html'))
+  })
+}
 
 const PORT = process.env.PORT || 5000
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
