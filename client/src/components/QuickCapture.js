@@ -72,8 +72,8 @@ function QuickCapture({
   const [saveStatus, setSaveStatus] = useState(null) // 'saving' | 'saved' | null
   const [analyseError, setAnalyseError] = useState(null)
   const [chatError, setChatError] = useState(null)
-  const [newPersonForms, setNewPersonForms] = useState({}) // editable fields per new person index
-  const [addedPeople, setAddedPeople] = useState({})      // index → true once added
+  const [, setNewPersonForms] = useState({}) // editable fields per new person index
+  const [, setAddedPeople] = useState({})      // index → true once added
   const [calSuggestions, setCalSuggestions] = useState([])
   const [calSuggForms, setCalSuggForms] = useState({})
   const [calSuggActions, setCalSuggActions] = useState({})
