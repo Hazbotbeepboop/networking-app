@@ -109,7 +109,7 @@ function formatEventsForPrompt(events) {
   return lines.join('\n')
 }
 
-module.exports = { getAuthUrl, storeTokens, getRecentEvents, formatEventsForPrompt, getCalendarSuggestions, matchesExistingContact }
+module.exports = { getAuthUrl, storeTokens, getRecentEvents, formatEventsForPrompt, getCalendarSuggestions, matchesExistingContact, getRecentlyEndedMeetings }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -204,5 +204,65 @@ async function getCalendarSuggestions(userId, contacts) {
   } catch (err) {
     console.error('[googleCalendar] getCalendarSuggestions failed:', err.message)
     return { suggestions: [], rawEvents: [], seenNames: new Set(), eventSuppressions: [], nameSuppressions: [] }
+  }
+}
+
+async function getRecentlyEndedMeetings(userId) {
+  try {
+    const user = await User.findById(userId).select('googleCalendar notifiedEventIds')
+    if (!user?.googleCalendar?.connected || !user.googleCalendar.accessToken) return []
+
+    const oauth2Client = createOAuthClient()
+    oauth2Client.setCredentials({
+      access_token: user.googleCalendar.accessToken,
+      refresh_token: user.googleCalendar.refreshToken,
+      expiry_date: user.googleCalendar.expiryDate,
+    })
+    oauth2Client.on('tokens', async (tokens) => {
+      if (tokens.access_token) {
+        await User.findByIdAndUpdate(userId, {
+          'googleCalendar.accessToken': tokens.access_token,
+          ...(tokens.expiry_date && { 'googleCalendar.expiryDate': tokens.expiry_date }),
+        })
+      }
+    })
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client })
+    const now = new Date()
+    const windowStart = new Date(now - 20 * 60 * 1000)
+
+    const response = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin: windowStart.toISOString(),
+      timeMax: now.toISOString(),
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 10,
+    })
+
+    const alreadyNotified = new Set(user.notifiedEventIds || [])
+    const twoMinAgo = new Date(now - 2 * 60 * 1000)
+    const fifteenMinAgo = new Date(now - 15 * 60 * 1000)
+
+    return (response.data.items || [])
+      .filter(e => {
+        if (e.status === 'cancelled') return false
+        if (!e.end?.dateTime) return false // skip all-day events
+        const endTime = new Date(e.end.dateTime)
+        if (endTime > twoMinAgo || endTime < fifteenMinAgo) return false
+        if (alreadyNotified.has(e.id)) return false
+        return (e.attendees || []).filter(a => !a.self).length >= 1
+      })
+      .map(e => ({
+        id: e.id,
+        title: e.summary || 'Untitled meeting',
+        attendees: (e.attendees || [])
+          .filter(a => !a.self)
+          .map(a => a.displayName || a.email.split('@')[0])
+          .slice(0, 5),
+      }))
+  } catch (err) {
+    console.error(`[googleCalendar] getRecentlyEndedMeetings failed for user ${userId}:`, err.message)
+    return []
   }
 }

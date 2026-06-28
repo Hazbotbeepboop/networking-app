@@ -30,6 +30,7 @@ const userSchema = new mongoose.Schema({
   },
   calendarEventSuppressions: [String],  // lowercased event titles
   calendarNameSuppressions: [String],   // lowercased person names
+  notifiedEventIds: { type: [String], default: [] }, // event IDs already sent a post-meeting nudge
 });
 
 // Hash password before saving

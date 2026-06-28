@@ -1,5 +1,7 @@
 const Agenda = require('agenda')
 const sgMail = require('@sendgrid/mail')
+const User = require('../models/User')
+const { getRecentlyEndedMeetings } = require('./googleCalendar')
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY)
 
@@ -70,5 +72,63 @@ async function scheduleReminder(user) {
 async function cancelReminder(userId) {
   await agenda.cancel({ name: 'send daily reminder', 'data.userId': userId.toString() })
 }
+
+// ── Post-meeting nudge ────────────────────────────────────────────────────────
+
+agenda.define('check post-meeting reminders', async (job) => {
+  const appUrl = process.env.APP_URL || 'http://localhost:3000'
+
+  const users = await User.find({ 'googleCalendar.connected': true })
+    .select('_id email googleCalendar notifiedEventIds')
+    .lean()
+
+  for (const user of users) {
+    const meetings = await getRecentlyEndedMeetings(user._id)
+    for (const meeting of meetings) {
+      const attendeeHtml = meeting.attendees.length
+        ? `<p style="font-size: 13px; color: #777; margin-bottom: 20px;">With: ${meeting.attendees.join(', ')}</p>`
+        : ''
+      const attendeePlain = meeting.attendees.length ? `With: ${meeting.attendees.join(', ')}\n\n` : ''
+
+      await sgMail.send({
+        to: user.email,
+        from: process.env.SENDGRID_FROM_EMAIL,
+        subject: `How did "${meeting.title}" go?`,
+        text: `You just wrapped up: ${meeting.title}\n\n${attendeePlain}Log it while it's fresh — what did you discuss, any follow-ups?\n\n${appUrl}/capture`,
+        html: `
+          <div style="font-family: -apple-system, sans-serif; max-width: 480px; margin: 0 auto; color: #333; padding: 32px 0;">
+            <p style="font-size: 13px; font-weight: 600; letter-spacing: 0.15em; color: #1C2B3A; margin-bottom: 28px;">
+              VAR<span style="color: #B08D57;">Y</span>S
+            </p>
+            <p style="font-size: 16px; font-weight: 500; color: #1C2B3A; margin-bottom: 12px;">
+              How did &ldquo;${meeting.title}&rdquo; go?
+            </p>
+            ${attendeeHtml}
+            <p style="font-size: 14px; color: #555; margin-bottom: 28px; line-height: 1.6;">
+              Log it while it&rsquo;s fresh &mdash; what did you discuss, any follow-ups?
+            </p>
+            <a href="${appUrl}/capture" style="display: inline-block; background: #1C2B3A; color: #B08D57; padding: 11px 26px; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500;">
+              Log it &rarr;
+            </a>
+            <p style="font-size: 11px; color: #ccc; margin-top: 40px;">
+              You&rsquo;re receiving this because you connected Google Calendar to <a href="${appUrl}/me" style="color: #ccc;">Varys</a>.
+            </p>
+          </div>
+        `,
+      })
+
+      await User.findByIdAndUpdate(user._id, {
+        $push: {
+          notifiedEventIds: {
+            $each: [meeting.id],
+            $slice: -500,
+          },
+        },
+      })
+
+      console.log(`[agenda] Post-meeting nudge sent to ${user.email} for "${meeting.title}"`)
+    }
+  }
+})
 
 module.exports = { agenda, scheduleReminder, cancelReminder }
