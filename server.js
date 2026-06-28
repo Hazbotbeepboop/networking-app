@@ -32,14 +32,15 @@ const authLimiter = rateLimit({
 const authRoutes = require('./routes/auth')
 app.use('/auth', authLimiter, authRoutes)
 
-// ── Production: serve static files (JS/CSS/images only — no catch-all yet) ─
+// ── Production: serve static files (JS/CSS/images) ─────────────────────────
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'client/build')))
 }
 
-// ── Auth middleware — everything below requires a valid JWT ─────────────────
+// ── Auth middleware — applied only to API route prefixes ───────────────────
 const requireAuth = require('./middleware/auth')
-app.use(requireAuth)
+const apiPaths = ['/people', '/entries', '/me', '/insights', '/suppressions', '/actions', '/conversations', '/admin']
+app.use(apiPaths, requireAuth)
 
 // ── Protected routes ────────────────────────────────────────────────────────
 const peopleRoutes = require('./routes/people')
@@ -47,7 +48,6 @@ app.use('/people', peopleRoutes)
 
 const entryRoutes = require('./routes/entries')
 app.use('/entries', entryRoutes)
-
 
 const meRoutes = require('./routes/me')
 app.use('/me', meRoutes)
@@ -67,7 +67,7 @@ app.use('/conversations', conversationRoutes)
 const adminRoutes = require('./routes/admin')
 app.use('/admin', adminRoutes)
 
-// ── Production: catch-all must be last so API routes take priority ──────────
+// ── Production: catch-all for React Router (after all API routes) ───────────
 if (process.env.NODE_ENV === 'production') {
   app.get('/{*path}', (req, res) => {
     res.sendFile(path.join(__dirname, 'client/build', 'index.html'))
