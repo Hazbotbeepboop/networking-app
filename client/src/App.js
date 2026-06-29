@@ -163,9 +163,8 @@ function NavBar({ userEmail, onLogout }) {
   )
 }
 
-function App() {
+function AuthenticatedApp({ onLogout }) {
   const [people, setPeople] = useState([])
-  const [token, setToken] = useState(() => localStorage.getItem('token'))
   const [userEmail] = useState(() => localStorage.getItem('userEmail'))
 
   // Capture state — persists across tab switches
@@ -181,14 +180,13 @@ function App() {
   const [showImport, setShowImport] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
 
-  // Check whether to show onboarding whenever token is set
+  // Check whether to show onboarding on mount (once per authenticated session)
   useEffect(() => {
-    if (!token) return
-    fetch('/me', { headers: { Authorization: `Bearer ${token}` } })
+    fetch('/me', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(res => res.json())
       .then(me => { if (!me?.name) setShowOnboarding(true) })
       .catch(() => {})
-  }, [token])
+  }, [])
 
   const handlePersonAdded = (newPerson) => {
     setPeople(prev => [...prev, newPerson])
@@ -197,24 +195,6 @@ function App() {
   const handlePeopleImported = (newPeople) => {
     setPeople(prev => [...prev, ...newPeople])
     setShowImport(false)
-  }
-
-  function handleLogin(newToken) {
-    setToken(newToken)
-  }
-
-  function handleLogout() {
-    localStorage.removeItem('token')
-    localStorage.removeItem('userEmail')
-    setToken(null)
-  }
-
-  if (!token) {
-    const path = window.location.pathname
-    if (path === '/reset-password') return <ResetPassword onDone={() => window.location.href = '/'} />
-    if (path === '/forgot-password') return <ForgotPassword onBack={() => window.location.href = '/'} />
-    if (path === '/privacy') return <Privacy onBack={() => window.location.href = '/'} />
-    return <Login onLogin={handleLogin} onForgotPassword={() => window.location.href = '/forgot-password'} />
   }
 
   const captureProps = {
@@ -236,7 +216,7 @@ function App() {
           localStorage.removeItem('varys_guide_done')
           setShowOnboarding(false)
         }} />}
-        <NavBar userEmail={userEmail} onLogout={handleLogout} />
+        <NavBar userEmail={userEmail} onLogout={onLogout} />
         <CaptureNudgeBanner />
         <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-[68px] sm:pt-8 pb-24 sm:pb-8">
           <Routes>
@@ -275,6 +255,30 @@ function App() {
       </div>
     </Router>
   )
+}
+
+function App() {
+  const [token, setToken] = useState(() => localStorage.getItem('token'))
+
+  function handleLogin(newToken) {
+    setToken(newToken)
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('token')
+    localStorage.removeItem('userEmail')
+    setToken(null)
+  }
+
+  if (!token) {
+    const path = window.location.pathname
+    if (path === '/reset-password') return <ResetPassword onDone={() => window.location.href = '/'} />
+    if (path === '/forgot-password') return <ForgotPassword onBack={() => window.location.href = '/'} />
+    if (path === '/privacy') return <Privacy onBack={() => window.location.href = '/'} />
+    return <Login onLogin={handleLogin} onForgotPassword={() => window.location.href = '/forgot-password'} />
+  }
+
+  return <AuthenticatedApp key={token} onLogout={handleLogout} />
 }
 
 export default App
