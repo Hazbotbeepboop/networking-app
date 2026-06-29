@@ -244,6 +244,9 @@ async function getRecentlyEndedMeetings(userId) {
     const twoMinAgo = new Date(now - 2 * 60 * 1000)
     const fifteenMinAgo = new Date(now - 15 * 60 * 1000)
 
+    // Titles that suggest a social/professional interaction worth logging
+    const SOCIAL_KEYWORDS = /\b(coffee|lunch|dinner|breakfast|drinks|brunch|catch[\s-]?up|meet(ing)?|call|chat|intro(duction)?|interview|debrief|sync|1:1|one[\s-]on[\s-]one|session|workshop|conference|networking|collab)\b/i
+
     return (response.data.items || [])
       .filter(e => {
         if (e.status === 'cancelled') return false
@@ -251,7 +254,9 @@ async function getRecentlyEndedMeetings(userId) {
         const endTime = new Date(e.end.dateTime)
         if (endTime > twoMinAgo || endTime < fifteenMinAgo) return false
         if (alreadyNotified.has(e.id)) return false
-        return (e.attendees || []).filter(a => !a.self).length >= 1
+        const hasAttendees = (e.attendees || []).filter(a => !a.self).length >= 1
+        const looksLikeMeeting = SOCIAL_KEYWORDS.test(e.summary || '')
+        return hasAttendees || looksLikeMeeting
       })
       .map(e => ({
         id: e.id,
