@@ -143,7 +143,7 @@ function NavBar({ userEmail, onLogout }) {
       </nav>
 
       {/* ── Mobile bottom tab bar ── */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 flex">
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 flex px-2">
         {links.map(link => {
           const active = location.pathname === link.to
           return (
