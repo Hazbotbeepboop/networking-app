@@ -522,48 +522,40 @@ function QuickCapture({
                 return (
                   <div key={i} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                     {/* Compact row — always visible */}
-                    <div className="flex items-center justify-between px-4 py-3">
-                      <div className="min-w-0">
+                    <div className="p-3 space-y-2">
+                      <div>
                         <div className="text-sm font-medium text-gray-800">{person.name}</div>
                         <div className="text-xs text-gray-400 mt-0.5">
                           {person.isPast ? 'Recent' : 'Upcoming'}: {person.eventTitle} — {person.date}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                      <div className="flex gap-2">
                         <button
                           onClick={() => {
                             if (!calSuggForms[i]) setCalSuggForms(prev => ({ ...prev, [i]: defaultForm }))
                             setCalSuggExpandedIndex(isExpanded ? null : i)
                           }}
                           disabled={calSuggExpandedIndex !== null && !isExpanded}
-                          className="px-3 py-1.5 text-xs font-medium rounded-lg disabled:opacity-30 transition-opacity"
+                          className="px-3 py-1 text-xs font-medium rounded-md disabled:opacity-30 transition-opacity"
                           style={{ backgroundColor: '#1C2B3A', color: '#B08D57' }}
                         >
                           Add to network
-                        </button>
-                        <button
-                          onClick={() => suppress('event')}
-                          className="px-2 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                          title="Stop suggesting this event"
-                        >
-                          Stop suggesting event
-                        </button>
-                        <button
-                          onClick={() => suppress('name')}
-                          className="px-2 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                          title="Stop suggesting this person"
-                        >
-                          Stop suggesting person
                         </button>
                         <button
                           onClick={() => {
                             setCalSuggActions(prev => ({ ...prev, [i]: 'dismissed' }))
                             if (calSuggExpandedIndex === i) setCalSuggExpandedIndex(null)
                           }}
-                          className="p-1 text-gray-300 hover:text-gray-500 transition-colors"
-                          title="Dismiss for now"
+                          className="px-3 py-1 text-xs text-gray-400 border border-gray-200 rounded-md hover:bg-gray-50"
                         >
-                          ×
+                          Dismiss
+                        </button>
+                        <button
+                          onClick={() => suppress('event')}
+                          className="px-3 py-1 text-xs text-gray-400 border border-gray-200 rounded-md hover:bg-gray-50"
+                          title="Stop suggesting this event"
+                        >
+                          Stop suggesting
                         </button>
                       </div>
                     </div>
