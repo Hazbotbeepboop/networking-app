@@ -289,7 +289,7 @@ Valid types: follow_up, introduction, add_contact, send_email, other
 Only include actions that are clearly warranted, not already completed, and not in STOP SUGGESTING. Maximum 4.
 
 PEOPLE_MENTIONED: [comma separated full names mentioned in the capture]
-SUGGESTED_SAVES: [comma separated names from NETWORK to save this entry to, or MY_JOURNAL for personal]
+SUGGESTED_SAVES: [comma separated names from NETWORK who are mentioned or relevant to this capture, plus MY_JOURNAL if the content is personal. Always include this field — use MY_JOURNAL if in doubt.]
 TITLE: [a short title for this conversation, max 8 words, e.g. "Beck Phillips capacity + JMC Academy lead"]
 
 NEW_PERSON
@@ -430,8 +430,8 @@ RETIRE_ACTION: <exact description string>
 
 Only emit RETIRE_ACTION lines for actions that are genuinely superseded. If no actions need retiring, omit entirely.
 
-If new people from the network are mentioned in this message that should be linked to the conversation, include:
-SUGGESTED_SAVES: [comma separated names from NETWORK, or MY_JOURNAL, or omit entirely if no new ones]
+Always include the following line listing every person from NETWORK who appears meaningfully in this conversation (including earlier turns), plus MY_JOURNAL if the content is personal. Do not omit this line:
+SUGGESTED_SAVES: [comma separated names from NETWORK, plus MY_JOURNAL if personal]
 
 If people are mentioned who are NOT already in NETWORK above and should be added as contacts, include at the end:
 NEW_PERSON: <full name> | <inferred role or blank> | <inferred company or blank> | <brief notes from the conversation>
