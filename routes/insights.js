@@ -304,9 +304,9 @@ Omit entirely if there are no new people. Maximum 3.`
     })
 
     const responseText = message.content[0].text
-    const peopleMatch = responseText.match(/PEOPLE_MENTIONED: \[(.+)\]/)
-    const savesMatch = responseText.match(/SUGGESTED_SAVES: \[(.+)\]/)
-    const titleMatch = responseText.match(/TITLE: \[(.+)\]/)
+    const peopleMatch = responseText.match(/PEOPLE_MENTIONED: \[?([^\]\n]+)\]?/)
+    const savesMatch = responseText.match(/SUGGESTED_SAVES: \[?([^\]\n]+)\]?/)
+    const titleMatch = responseText.match(/TITLE: \[?([^\]\n]+)\]?/)
     const peopleMentioned = peopleMatch ? peopleMatch[1].split(',').map(s => s.trim()).filter(Boolean) : []
     const suggestedSaves = savesMatch ? savesMatch[1].split(',').map(s => s.trim()).filter(Boolean) : []
     const conversationTitle = titleMatch ? titleMatch[1].trim() : text.slice(0, 60)
@@ -467,7 +467,7 @@ Omit entirely if no new people. Maximum 3.`
     const retireLines = [...responseText.matchAll(/^RETIRE_ACTION: (.+)$/gm)]
     const retireActions = retireLines.map(match => match[1].trim())
 
-    const savesMatch = responseText.match(/SUGGESTED_SAVES: \[(.+)\]/)
+    const savesMatch = responseText.match(/SUGGESTED_SAVES: \[?([^\]\n]+)\]?/)
     const suggestedSaves = savesMatch ? savesMatch[1].split(',').map(s => s.trim()).filter(Boolean) : []
 
     const newPersonLines = [...responseText.matchAll(/^NEW_PERSON: (.+?) \| (.*?) \| (.*?) \| (.*)$/gm)]
