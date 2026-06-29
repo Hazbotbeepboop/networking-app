@@ -308,7 +308,7 @@ Omit entirely if there are no new people. Maximum 3.`
     const savesMatch = responseText.match(/SUGGESTED_SAVES: \[?([^\]\n]+)\]?/)
     const titleMatch = responseText.match(/TITLE: \[?([^\]\n]+)\]?/)
     const peopleMentioned = peopleMatch ? peopleMatch[1].split(',').map(s => s.trim()).filter(Boolean) : []
-    const suggestedSaves = savesMatch ? savesMatch[1].split(',').map(s => s.trim()).filter(Boolean) : []
+    const suggestedSaves = savesMatch ? savesMatch[1].split(',').map(s => s.trim()).map(s => s.replace(/[\s_]/g, '').toUpperCase() === 'MYJOURNAL' ? 'MY_JOURNAL' : s).filter(Boolean) : []
     const conversationTitle = titleMatch ? titleMatch[1].trim() : text.slice(0, 60)
     const actionLines = [...responseText.matchAll(/^ACTION: (.+) \| (.+) \| (.*)$/gm)]
     const suggestedActions = actionLines.map(match => ({
@@ -468,7 +468,7 @@ Omit entirely if no new people. Maximum 3.`
     const retireActions = retireLines.map(match => match[1].trim())
 
     const savesMatch = responseText.match(/SUGGESTED_SAVES: \[?([^\]\n]+)\]?/)
-    const suggestedSaves = savesMatch ? savesMatch[1].split(',').map(s => s.trim()).filter(Boolean) : []
+    const suggestedSaves = savesMatch ? savesMatch[1].split(',').map(s => s.trim()).map(s => s.replace(/[\s_]/g, '').toUpperCase() === 'MYJOURNAL' ? 'MY_JOURNAL' : s).filter(Boolean) : []
 
     const newPersonLines = [...responseText.matchAll(/^NEW_PERSON: (.+?) \| (.*?) \| (.*?) \| (.*)$/gm)]
     const addPersonActions = newPersonLines
