@@ -277,8 +277,10 @@ CAPTURE:
 
 Respond in this exact format — no preamble, no filler:
 
+If the capture is too vague to meaningfully analyse (no person identified, no real context to work with), open the INTELLIGENCE section with a single clarifying question and keep ACTIONS empty. Otherwise proceed with full analysis.
+
 INTELLIGENCE
-2–4 sentences. What this capture means in the context of the user's goals and network. Name specific people where relevant. Be direct. Do not suggest anything in COMPLETED ACTIONS or STOP SUGGESTING.
+2–4 sentences. What this capture means in the context of the user's goals and network. Name specific people where relevant. Be direct. Do not suggest anything in COMPLETED ACTIONS or STOP SUGGESTING. If the capture is clear, end with one short follow-up question that invites the user to go deeper.
 
 ACTIONS
 List each action on its own line in this exact format:
