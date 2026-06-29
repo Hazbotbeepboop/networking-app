@@ -326,7 +326,17 @@ function Me() {
         ) : (
           <div className="space-y-2">
             {conversations.length === 0 && (
-              <p className="text-sm text-gray-300 py-2">No journal entries yet.</p>
+              <div className="space-y-3">
+                <p className="text-xs text-gray-400 leading-relaxed">Your private space for goals, reflections, and context about yourself. Varys reads your journal when giving advice — the more it knows about where you're headed, the more specific it can be.</p>
+                <div className="border border-dashed border-gray-200 rounded-lg p-3 opacity-50 pointer-events-none select-none">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: '#F5EDD8', color: '#B08D57' }}>Example</div>
+                    <div className="text-xs text-gray-300">29 Jun 2026</div>
+                  </div>
+                  <div className="text-sm font-medium text-gray-700 mb-1">Thinking about my direction this year</div>
+                  <div className="text-xs text-gray-400 leading-relaxed line-clamp-3">I want to move into more consulting work and less of the day-to-day grind. The Beck conversation is the first real lead I've had in that direction — I need to be more deliberate about who I spend time with and what opportunities I actually say yes to.</div>
+                </div>
+              </div>
             )}
             {conversations.map(conv => (
               <div
