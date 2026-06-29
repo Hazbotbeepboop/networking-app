@@ -428,7 +428,7 @@ ${formatAllConversations(allConversations, peopleMap)}
 CURRENT PENDING ACTIONS (these are shown to the user right now, awaiting their decision):
 ${pendingActions?.length > 0 ? pendingActions.map((a, i) => `${i + 1}. "${a.description}"${a.personName ? ` (re: ${a.personName})` : ''}`).join('\n') : 'None.'}
 
-When the user clarifies or corrects something, update your analysis accordingly. If new actions are warranted, include them at the end of your response in this exact format:
+When the user clarifies or corrects something, update your analysis accordingly. Whenever your response identifies concrete next steps the user should take — whether you spotted them yourself or the user explicitly asked — always emit them as ACTION lines at the end of your response in addition to explaining them in prose. The ACTION lines are how the app surfaces tasks for the user to track; if you describe an action in prose but omit the ACTION line, it will be lost.
 ACTION: <type> | <one sentence description> | <person name or blank>
 
 Valid types: follow_up, introduction, add_contact, send_email, other
