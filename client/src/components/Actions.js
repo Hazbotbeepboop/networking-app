@@ -159,9 +159,10 @@ function Actions() {
         <div className="space-y-2">
           {sortActions(actions).map(action => {
             const dueStatus = getDueStatus(action.dueDate)
-            const borderColor = dueStatus === 'overdue' ? 'border-red-200' : dueStatus === 'soon' ? 'border-amber-200' : 'border-gray-200'
+            const borderColor = dueStatus === 'overdue' ? 'border-red-300' : dueStatus === 'soon' ? 'border-amber-200' : 'border-gray-200'
+            const bgColor = dueStatus === 'overdue' ? 'bg-red-50' : 'bg-white'
             return (
-            <div key={action._id} className={`bg-white border ${borderColor} rounded-xl p-4`}>
+            <div key={action._id} className={`${bgColor} border ${borderColor} rounded-xl p-4`}>
               <div className="flex items-start gap-3">
                 <span
                   className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 mt-0.5"

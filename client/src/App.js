@@ -54,7 +54,7 @@ function CaptureNudgeBanner() {
   )
 }
 
-function NavBar({ userEmail, onLogout }) {
+function NavBar({ userEmail, onLogout, overdueCount }) {
   const location = useLocation()
   const links = [
     {
@@ -91,17 +91,22 @@ function NavBar({ userEmail, onLogout }) {
         <div className="flex gap-7">
           {links.map(link => {
             const active = location.pathname === link.to
+            const isActionsTab = link.to === '/actions'
+            const hasOverdue = isActionsTab && overdueCount > 0
             return (
               <Link
                 key={link.to}
                 to={link.to}
-                className={`text-sm pb-0.5 transition-colors ${
+                className={`text-sm pb-0.5 transition-colors relative ${
                   active
                     ? 'text-gray-900 font-medium border-b-2 border-[#B08D57]'
+                    : hasOverdue
+                    ? 'text-red-500 hover:text-red-600'
                     : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
                 {link.label === 'Convos' ? 'Conversations' : link.label}
+                {hasOverdue && <span className="absolute -top-1 -right-3 min-w-[14px] h-[14px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">{overdueCount}</span>}
               </Link>
             )
           })}
@@ -147,14 +152,22 @@ function NavBar({ userEmail, onLogout }) {
       <div className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 flex px-2">
         {links.map(link => {
           const active = location.pathname === link.to
+          const isActionsTab = link.to === '/actions'
+          const hasOverdue = isActionsTab && overdueCount > 0
+          const color = active ? '#B08D57' : hasOverdue ? '#EF4444' : '#9CA3AF'
           return (
             <Link
               key={link.to}
               to={link.to}
               className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors"
-              style={{ color: active ? '#B08D57' : '#9CA3AF' }}
+              style={{ color }}
             >
-              <div className="w-5 h-5">{link.icon}</div>
+              <div className="w-5 h-5 relative">
+                {link.icon}
+                {hasOverdue && !active && (
+                  <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5">{overdueCount}</span>
+                )}
+              </div>
               <span className="text-[10px] font-medium">{link.label}</span>
             </Link>
           )
@@ -180,6 +193,24 @@ function AuthenticatedApp({ onLogout }) {
   const [newPeopleData, setNewPeopleData] = useState([])
   const [showImport, setShowImport] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [overdueCount, setOverdueCount] = useState(0)
+
+  // Fetch overdue action count for tab badge
+  useEffect(() => {
+    authFetch('/actions')
+      .then(r => r.json())
+      .then(data => {
+        if (!Array.isArray(data)) return
+        const now = new Date(); now.setHours(0, 0, 0, 0)
+        const count = data.filter(a => {
+          if (!a.dueDate) return false
+          const due = new Date(a.dueDate); due.setHours(0, 0, 0, 0)
+          return due < now
+        }).length
+        setOverdueCount(count)
+      })
+      .catch(() => {})
+  }, [])
 
   // Check whether to show onboarding on mount (once per authenticated session)
   useEffect(() => {
@@ -217,7 +248,7 @@ function AuthenticatedApp({ onLogout }) {
           localStorage.removeItem('varys_guide_done')
           setShowOnboarding(false)
         }} />}
-        <NavBar userEmail={userEmail} onLogout={onLogout} />
+        <NavBar userEmail={userEmail} onLogout={onLogout} overdueCount={overdueCount} />
         <CaptureNudgeBanner />
         <main className="max-w-3xl mx-auto px-4 sm:px-6 pt-[68px] sm:pt-8 pb-24 sm:pb-8">
           <Routes>
