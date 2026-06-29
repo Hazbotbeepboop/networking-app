@@ -244,9 +244,16 @@ function QuickCapture({
           }
         }
 
-        // Add new actions
+        // Add new actions — deduplicate by type + person/description key
         if (data.newActions?.length > 0) {
-          setCapturePendingActions(prev => [...prev, ...data.newActions])
+          setCapturePendingActions(prev => {
+            const existingKeys = new Set(prev.map(a => `${a.type}|${(a.personName || a.description).toLowerCase()}`))
+            const fresh = data.newActions.filter(a => {
+              const key = `${a.type}|${(a.personName || a.description).toLowerCase()}`
+              return !existingKeys.has(key)
+            })
+            return fresh.length > 0 ? [...prev, ...fresh] : prev
+          })
         }
         // Remove retired actions — Claude returns exact descriptions to retire
         if (data.retireActions?.length > 0) {

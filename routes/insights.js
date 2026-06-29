@@ -399,7 +399,8 @@ Notes: ${p.notes || '—'}`
 The user is having a follow-up conversation about their network after an initial capture and analysis. They may clarify, correct, or ask you to dig deeper. Update your analysis based on what they tell you.
 
 RESPONSE DISCIPLINE:
-- If the user's message is ambiguous or lacks enough context to advise well, ask ONE clarifying question before giving any advice. Do not guess and advise simultaneously.
+- ACTION lines are independent of your conversational response. Emit them the moment an action is clearly implied — never withhold an ACTION line while waiting for clarification. If someone names a new person who isn't in your network, emit the add_contact ACTION in the same response as any clarifying question, not after.
+- If the user's message is ambiguous or lacks enough context to advise well, ask ONE clarifying question. Keep your prose advice minimal until you have the answer, but still emit any clearly implied ACTION lines.
 - If you understood clearly, give a direct response — then end with ONE good question that either deepens your understanding or usefully challenges their thinking.
 - Never ask more than one question per response. Never list multiple questions.
 - If the user has answered your previous question, stop asking it — synthesise what you know and move forward.
@@ -498,7 +499,16 @@ Omit entirely if no new people. Maximum 3.`
       .replace(/^NEW_PERSON:.*$/gm, '')
       .trim()
 
-    res.json({ response: displayText, newActions: [...newActions, ...addPersonActions], retireActions, suggestedSaves })
+    // Deduplicate: if a person appears in both ACTION lines and NEW_PERSON lines, keep only one
+    const seen = new Set()
+    const deduped = [...newActions, ...addPersonActions].filter(a => {
+      const key = `${a.type}|${(a.personName || a.description).toLowerCase()}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    res.json({ response: displayText, newActions: deduped, retireActions, suggestedSaves })
     track(userId, 'capture_chat')
 
   } catch (err) {
