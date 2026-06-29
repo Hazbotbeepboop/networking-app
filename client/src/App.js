@@ -16,7 +16,8 @@ import Onboarding from './components/Onboarding'
 
 export function authFetch(url, options = {}) {
   const token = localStorage.getItem('token')
-  return fetch(url, {
+  const apiUrl = url.startsWith('/auth') ? url : `/api${url}`
+  return fetch(apiUrl, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -182,7 +183,7 @@ function AuthenticatedApp({ onLogout }) {
 
   // Check whether to show onboarding on mount (once per authenticated session)
   useEffect(() => {
-    fetch('/me', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+    fetch('/api/me', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then(res => res.json())
       .then(me => { if (!me?.name) setShowOnboarding(true) })
       .catch(() => {})

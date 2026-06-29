@@ -39,33 +39,32 @@ if (process.env.NODE_ENV === 'production') {
 
 // ── Auth middleware — applied only to API route prefixes ───────────────────
 const requireAuth = require('./middleware/auth')
-const apiPaths = ['/people', '/entries', '/me', '/insights', '/suppressions', '/actions', '/conversations', '/admin']
-app.use(apiPaths, requireAuth)
+app.use('/api', requireAuth)
 
 // ── Protected routes ────────────────────────────────────────────────────────
 const peopleRoutes = require('./routes/people')
-app.use('/people', peopleRoutes)
+app.use('/api/people', peopleRoutes)
 
 const entryRoutes = require('./routes/entries')
-app.use('/entries', entryRoutes)
+app.use('/api/entries', entryRoutes)
 
 const meRoutes = require('./routes/me')
-app.use('/me', meRoutes)
+app.use('/api/me', meRoutes)
 
 const insightRoutes = require('./routes/insights')
-app.use('/insights', insightRoutes)
+app.use('/api/insights', insightRoutes)
 
 const suppressionRoutes = require('./routes/suppressions')
-app.use('/suppressions', suppressionRoutes)
+app.use('/api/suppressions', suppressionRoutes)
 
 const actionRoutes = require('./routes/actions')
-app.use('/actions', actionRoutes)
+app.use('/api/actions', actionRoutes)
 
 const conversationRoutes = require('./routes/conversations')
-app.use('/conversations', conversationRoutes)
+app.use('/api/conversations', conversationRoutes)
 
 const adminRoutes = require('./routes/admin')
-app.use('/admin', adminRoutes)
+app.use('/api/admin', adminRoutes)
 
 // ── Production: catch-all for React Router (after all API routes) ───────────
 if (process.env.NODE_ENV === 'production') {
