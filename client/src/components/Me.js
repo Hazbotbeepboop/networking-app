@@ -186,6 +186,16 @@ function Me() {
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors resize-none"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Mobile number <span className="text-gray-300 font-normal">(for post-meeting SMS nudges)</span></label>
+                <input
+                  name="phone"
+                  placeholder="+61412345678"
+                  value={formData.phone || ''}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                />
+              </div>
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={handleSave}

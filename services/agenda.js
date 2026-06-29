@@ -1,5 +1,6 @@
 const Agenda = require('agenda')
 const sgMail = require('@sendgrid/mail')
+const twilio = require('twilio')
 const User = require('../models/User')
 const { getRecentlyEndedMeetings } = require('./googleCalendar')
 
@@ -79,7 +80,7 @@ agenda.define('check post-meeting reminders', async (job) => {
   const appUrl = process.env.APP_URL || 'http://localhost:3000'
 
   const users = await User.find({ 'googleCalendar.connected': true })
-    .select('_id email googleCalendar notifiedEventIds')
+    .select('_id email phone googleCalendar notifiedEventIds')
     .lean()
 
   for (const user of users) {
@@ -125,6 +126,16 @@ agenda.define('check post-meeting reminders', async (job) => {
           },
         },
       })
+
+      // SMS nudge (if user has a phone number and Twilio is configured)
+      if (user.phone && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+        const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+        await twilioClient.messages.create({
+          body: `How did "${meeting.title}" go? Log it while it's fresh → ${appUrl}`,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: user.phone,
+        }).catch(err => console.error(`[twilio] SMS failed for ${user.email}:`, err.message))
+      }
 
       console.log(`[agenda] Post-meeting nudge sent to ${user.email} for "${meeting.title}"`)
     }
