@@ -229,16 +229,19 @@ function QuickCapture({
     })
       .then(res => res.json())
       .then(data => {
-        const newHistory = [...updatedHistory, { role: 'assistant', content: data.response }]
-        setChatHistory(newHistory)
+        // Don't append empty assistant messages to history
+        if (data.response) {
+          const newHistory = [...updatedHistory, { role: 'assistant', content: data.response }]
+          setChatHistory(newHistory)
 
-        // Auto-update saved conversation
-        if (savedIdRef.current) {
-          authFetch(`/conversations/${savedIdRef.current}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ messages: newHistory })
-          }).catch(() => {})
+          // Auto-update saved conversation
+          if (savedIdRef.current) {
+            authFetch(`/conversations/${savedIdRef.current}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages: newHistory })
+            }).catch(() => {})
+          }
         }
 
         // Add new actions

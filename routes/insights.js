@@ -430,8 +430,8 @@ RETIRE_ACTION: <exact description string>
 
 Only emit RETIRE_ACTION lines for actions that are genuinely superseded. If no actions need retiring, omit entirely.
 
-Always include the following line listing every person from NETWORK who appears meaningfully in this conversation (including earlier turns), plus MY_JOURNAL if the content is personal. Do not omit this line:
-SUGGESTED_SAVES: [comma separated names from NETWORK, plus MY_JOURNAL if personal]
+After your conversational response, always append this metadata line on its own line, based on the FULL conversation history (not just the latest message):
+SUGGESTED_SAVES: [names from NETWORK who are meaningfully discussed anywhere in this conversation, plus MY_JOURNAL if the content is personal or about the user's own goals/strategy. If neither applies, write SUGGESTED_SAVES: []]
 
 If people are mentioned who are NOT already in NETWORK above and should be added as contacts, include at the end:
 NEW_PERSON: <full name> | <inferred role or blank> | <inferred company or blank> | <brief notes from the conversation>
