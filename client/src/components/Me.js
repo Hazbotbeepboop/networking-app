@@ -1,6 +1,31 @@
 import React, { useState, useEffect } from 'react'
 import { authFetch } from '../App'
 
+const DIAL_CODES = [
+  { flag: '🇦🇺', label: 'Australia', code: '+61' },
+  { flag: '�🇿', label: 'New Zealand', code: '+64' },
+  { flag: '🇬🇧', label: 'United Kingdom', code: '+44' },
+  { flag: '🇺🇸', label: 'US / Canada', code: '+1' },
+  { flag: '🇸🇬', label: 'Singapore', code: '+65' },
+  { flag: '🇮🇳', label: 'India', code: '+91' },
+  { flag: '🇩🇪', label: 'Germany', code: '+49' },
+  { flag: '🇫🇷', label: 'France', code: '+33' },
+  { flag: '🇮🇪', label: 'Ireland', code: '+353' },
+  { flag: '🇳🇱', label: 'Netherlands', code: '+31' },
+  { flag: '🇿🇦', label: 'South Africa', code: '+27' },
+  { flag: '🇦🇪', label: 'UAE', code: '+971' },
+  { flag: '🇯🇵', label: 'Japan', code: '+81' },
+  { flag: '🇨🇳', label: 'China', code: '+86' },
+  { flag: '🇧🇷', label: 'Brazil', code: '+55' },
+  { flag: '🇸🇪', label: 'Sweden', code: '+46' },
+]
+
+function detectDialCode(phone) {
+  if (!phone) return '+61'
+  const sorted = [...DIAL_CODES].sort((a, b) => b.code.length - a.code.length)
+  return sorted.find(d => phone.startsWith(d.code))?.code || '+61'
+}
+
 function Me() {
   const [me, setMe] = useState(null)
   const [editing, setEditing] = useState(false)
@@ -188,13 +213,31 @@ function Me() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Mobile number <span className="text-gray-300 font-normal">(for post-meeting SMS nudges)</span></label>
-                <input
-                  name="phone"
-                  placeholder="+61412345678"
-                  value={formData.phone || ''}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
-                />
+                <div className="flex gap-1.5">
+                  <select
+                    value={detectDialCode(formData.phone)}
+                    onChange={e => {
+                      const newCode = e.target.value
+                      const local = (formData.phone || '').slice(detectDialCode(formData.phone).length)
+                      setFormData(prev => ({ ...prev, phone: newCode + local }))
+                    }}
+                    className="px-2 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors bg-white"
+                  >
+                    {DIAL_CODES.map(d => (
+                      <option key={d.code} value={d.code}>{d.flag} {d.code} {d.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    placeholder="412 345 678"
+                    inputMode="tel"
+                    value={(formData.phone || '').slice(detectDialCode(formData.phone).length)}
+                    onChange={e => {
+                      const digits = e.target.value.replace(/\D/g, '')
+                      setFormData(prev => ({ ...prev, phone: detectDialCode(prev.phone) + digits }))
+                    }}
+                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#B08D57] transition-colors"
+                  />
+                </div>
               </div>
               <div className="flex gap-2 pt-1">
                 <button
